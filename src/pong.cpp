@@ -56,13 +56,13 @@ int main(int argc, char* argv[]) {
         bottom.setPosition(0, 600 - 10);
 
         // left paddle
-        sf::RectangleShape left(sf::Vector2f(10, 600));
+        sf::RectangleShape left(sf::Vector2f(10, 100));
         left.setFillColor(c);
-        left.setPosition(0, 0);
+        left.setPosition(50, 200);
 
         // right paddle
         sf::RectangleShape right = left;
-        right.setPosition(800 - 10, 0);
+        right.setPosition(800 - 50, 400);
 
         // ball, direction, and sound
         sf::RectangleShape ball(sf::Vector2f(15, 15));
