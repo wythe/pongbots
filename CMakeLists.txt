@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 2.8)
+project(pong64)
+add_subdirectory(src)
+#add_subdirectory(unit)
+enable_testing()
