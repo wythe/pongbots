@@ -6,9 +6,58 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 
+const float speed = 500.f; // pixels per second when moving ball and paddles
+const double pi = std::acos(-1);
+
 template <typename T>
 sf::IntRect to_rect(T const & shape) {
     return sf::IntRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
+}
+
+template <typename Shape>
+int mid_y(const Shape & rect) {
+    return rect.getPosition().y + rect.getSize().y / 2;
+}
+
+template <typename Shape>
+int mid_x(const Shape & rect) {
+    return rect.getPosition().x + rect.getSize().x / 2;
+}
+
+template <typename Shape>
+int set_midpoint(Shape & rect, int x, int y) {
+    rect.setPosition(x - rect.getSize().x / 2, y - rect.getSize().y / 2);
+}
+
+template <typename Shape>
+int set_midpoint(Shape & rect, int y) {
+    rect.setPosition(rect.getPosition().x, y - rect.getSize().y / 2);
+}
+
+template <typename Shape>
+int ai_update(const Shape & ball, const Shape & paddle) {
+    if (mid_y(ball) > mid_y(paddle)) return 1;
+    return -1;
+}
+
+int rng(int min, int max) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> dis(min, max);
+    return dis(gen);
+}
+
+template <typename Shape, typename Dir>
+int ai_update(const Shape & ball, const Dir & dir, const Shape & paddle) {
+    if (mid_y(ball) > mid_y(paddle)) return 1;
+    return -1;
+}
+
+void move_paddle(sf::RectangleShape & paddle, float distance) {
+    auto y = mid_y(paddle) + distance;
+    if (y < 100) set_midpoint(paddle, 100);
+    else if (y > 500) set_midpoint(paddle, 500);
+    else paddle.move(0, distance);
 }
 
 void bounce(const sf::IntRect & ball, const sf::IntRect & wall, sf::Vector2f & dir, sf::Sound & sound) {
@@ -32,6 +81,13 @@ void bounce(const T & ball, const T & wall, sf::Vector2f & dir, sf::Sound & soun
     bounce(to_rect(ball), to_rect(wall), dir, sound);
 }
 
+template <typename T, typename Action>
+void score(const T & ball, Action action) {
+    auto r = to_rect(ball);
+    auto field = sf::IntRect(0, 0, 800, 600);
+    if (!r.intersects(field)) action();
+}
+
 int main(int argc, char* argv[]) {
 
     try {
@@ -41,8 +97,6 @@ int main(int argc, char* argv[]) {
 
         // clock for determining time between frame displays
         sf::Clock clock;
-        const float speed = 500.f; // pixels per second when moving ball and paddles
-        const double pi = std::acos(-1);
 
         // top bar
         sf::RectangleShape top(sf::Vector2f(800, 10));
@@ -56,13 +110,12 @@ int main(int argc, char* argv[]) {
         bottom.setPosition(0, 600 - 10);
 
         // left paddle
-        sf::RectangleShape left(sf::Vector2f(10, 100));
-        left.setFillColor(c);
-        left.setPosition(50, 200);
+        sf::RectangleShape left(sf::Vector2f(10, 80));
+        set_midpoint(left, 50, 300);
 
         // right paddle
         sf::RectangleShape right = left;
-        right.setPosition(800 - 50, 400);
+        set_midpoint(right, 800 - 50, 500);
 
         // ball, direction, and sound
         sf::RectangleShape ball(sf::Vector2f(15, 15));
@@ -70,16 +123,12 @@ int main(int argc, char* argv[]) {
         sf::SoundBuffer sound_buff;
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
         sf::Sound sound(sound_buff);
-        ball.setPosition(100, 100);
+        set_midpoint(ball, 400, 20);
 
         // font 
         sf::Font font;
         if (!font.loadFromFile("assets/FreeMono.ttf")) throw std::runtime_error("cannot open font");
     
-        // fps text
-        sf::Text fps_message("ready", font);
-        fps_message.setPosition(730.f, 10.f);
-
         clock.restart();
         float dt;
         float dt_count = 0;
@@ -113,28 +162,21 @@ int main(int argc, char* argv[]) {
                         break;
                 }
             }
-#if 0
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::W)) { // down 
-                if (!intersects(bottom, ball)) ball.move(0.f, velocity * dt);
+            if (!paused) {
+                bounce(ball, bottom, dir, sound);
+                bounce(ball, top, dir, sound);
+                bounce(ball, left, dir, sound);
+                bounce(ball, right, dir, sound);
+                ball.move(dir.x * speed * dt, dir.y * speed * dt);
+                if (dir.x > 0) move_paddle(right, ai_update(ball, dir, right) * speed * dt);
+                else move_paddle(left, ai_update(ball, dir, left) * speed * dt);
+
+                score(ball, [&] { 
+                    std::cout << "score!\n"; 
+                    set_midpoint(ball, 400, rng(100, 500));
+                });
             }
 
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::E)) { // up
-                if (!intersects(top, ball)) ball.move(0.f, -velocity * dt);
-            }
-#endif
-            bounce(ball, bottom, dir, sound);
-            bounce(ball, top, dir, sound);
-            bounce(ball, left, dir, sound);
-            bounce(ball, right, dir, sound);
-            if (!paused) ball.move(dir.x * speed * dt, dir.y * speed * dt);
-
-            ++frames;
-            dt_count += dt;
-            if (dt_count > .5f) {
-                fps_message.setString(std::to_string(frames * 2));
-                frames = 0;
-                dt_count = 0;
-            }
 
             rw.clear();
             rw.draw(top);
@@ -142,7 +184,6 @@ int main(int argc, char* argv[]) {
             rw.draw(left);
             rw.draw(right);
             rw.draw(ball);
-            rw.draw(fps_message);
             rw.display();
         }
     } catch (std::exception & e) {
