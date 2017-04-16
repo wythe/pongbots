@@ -49,8 +49,32 @@ int rng(int min, int max) {
 
 template <typename Shape, typename Dir>
 int ai_update(const Shape & ball, const Dir & dir, const Shape & paddle) {
-    if (mid_y(ball) > mid_y(paddle)) return 1;
-    return -1;
+    // find the angle of the ball
+    // std::cout << "dir is : " << dir.x << ", " << dir.y << '\n';
+    auto tan_angle = dir.y / dir.x;
+
+    // std::cout << "tan_angle is " << tan_angle << '\n';
+    auto angle = std::atan(tan_angle);
+
+    // std::cout << "angle is " << angle << '\n';
+
+    // now find the adjacent (distance from ball to paddle)
+    auto adj = mid_x(paddle) - mid_x(ball);
+    // std::cout << "adj is " << adj << '\n';
+
+    // calculate the opposite
+    auto opp = std::tan(angle) * adj;
+    // std::cout << "opp is " << opp << '\n';
+    
+    // std::cout << "mid_y(ball) is " << mid_y(ball) << '\n';
+    auto dest_y = mid_y(ball) + opp;
+    // std::cout << "dest_y is " << dest_y << '\n';
+
+    dest_y %= 600;
+    // should just return dest_y and let move_paddle do the moving
+    auto d = dest_y - mid_y(paddle);
+    if (std::abs(d) <= 1) return 0;
+    return (dest_y > mid_y(paddle)) ? 1 : -1;
 }
 
 void move_paddle(sf::RectangleShape & paddle, float distance) {
@@ -176,7 +200,6 @@ int main(int argc, char* argv[]) {
                     set_midpoint(ball, 400, rng(100, 500));
                 });
             }
-
 
             rw.clear();
             rw.draw(top);
