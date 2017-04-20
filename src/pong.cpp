@@ -8,6 +8,8 @@
 
 const float speed = 500.f; // pixels per second when moving ball and paddles
 const double pi = std::acos(-1);
+const int W = 800;
+const int H = 600;
 
 template <typename T>
 sf::IntRect to_rect(T const & shape) {
@@ -67,12 +69,17 @@ int ai_update(const Shape & ball, const Dir & dir, const Shape & paddle) {
     // std::cout << "opp is " << opp << '\n';
     
     // std::cout << "mid_y(ball) is " << mid_y(ball) << '\n';
-    auto dest_y = mid_y(ball) + opp;
+    int dest_y = mid_y(ball) + opp;
     // std::cout << "dest_y is " << dest_y << '\n';
 
-    dest_y %= 600;
+    // if greater than 800, then calc d'
+    if (dest_y > H) {
+        dest_y = H - (dest_y - H);
+        // std::cout << "dest_y' = " << dest_y << '\n';
+    }
     // should just return dest_y and let move_paddle do the moving
     auto d = dest_y - mid_y(paddle);
+
     if (std::abs(d) <= 1) return 0;
     return (dest_y > mid_y(paddle)) ? 1 : -1;
 }
@@ -108,7 +115,7 @@ void bounce(const T & ball, const T & wall, sf::Vector2f & dir, sf::Sound & soun
 template <typename T, typename Action>
 void score(const T & ball, Action action) {
     auto r = to_rect(ball);
-    auto field = sf::IntRect(0, 0, 800, 600);
+    auto field = sf::IntRect(0, 0, W, H);
     if (!r.intersects(field)) action();
 }
 
@@ -116,14 +123,14 @@ int main(int argc, char* argv[]) {
 
     try {
         // main window
-        sf::RenderWindow rw(sf::VideoMode(800, 600), "pong64");
+        sf::RenderWindow rw(sf::VideoMode(W, H), "pong64");
         rw.setFramerateLimit(120);
 
         // clock for determining time between frame displays
         sf::Clock clock;
 
         // top bar
-        sf::RectangleShape top(sf::Vector2f(800, 10));
+        sf::RectangleShape top(sf::Vector2f(W, 10));
         auto c = sf::Color::White;
         c.a = 155;
         top.setFillColor(c);
@@ -131,7 +138,7 @@ int main(int argc, char* argv[]) {
 
         // bottom bar
         sf::RectangleShape bottom = top;
-        bottom.setPosition(0, 600 - 10);
+        bottom.setPosition(0, H - 10);
 
         // left paddle
         sf::RectangleShape left(sf::Vector2f(10, 80));
@@ -139,7 +146,7 @@ int main(int argc, char* argv[]) {
 
         // right paddle
         sf::RectangleShape right = left;
-        set_midpoint(right, 800 - 50, 500);
+        set_midpoint(right, W - 50, 500);
 
         // ball, direction, and sound
         sf::RectangleShape ball(sf::Vector2f(15, 15));
