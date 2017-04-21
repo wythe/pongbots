@@ -85,7 +85,7 @@ int rng(int min, int max) {
 }
 
 template <typename Ball, typename Shape, typename Dir>
-int ai_update(const Ball & ball, const Dir & dx, const Shape & paddle) {
+int ai_update(const Ball & ball, const Shape & paddle) {
     // find the angle of the ball
     auto tan_angle = ball.d.y / ball.d.x;
 
