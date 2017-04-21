@@ -6,6 +6,8 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 
+using std::cout;
+
 const float speed = 500.f; // pixels per second when moving ball and paddles
 const double pi = std::acos(-1);
 const int W = 800;
@@ -15,6 +17,10 @@ struct ball_type {
     ball_type(sf::Vector2f size, sf::Vector2f angle) : b(size), d(angle) {}
     ball_type(const ball_type &) = default;
     ball_type & operator=(const ball_type &) = default;
+
+    template <typename T>
+    void move(T x, T y) { b.move(x, y); }
+
     sf::RectangleShape b;
     sf::Vector2f d;
 };
@@ -42,7 +48,7 @@ int mid_x(const Shape & rect) {
     return rect.getPosition().x + rect.getSize().x / 2;
 }
 
-int mid_x(ball_type & b) {
+int mid_x(const ball_type & b) {
     return mid_x(b.b);
 }
 
@@ -51,8 +57,8 @@ int set_midpoint(Shape & rect, int x, int y) {
     rect.setPosition(x - rect.getSize().x / 2, y - rect.getSize().y / 2);
 }
 
-int set_midpoint(ball_type & rect, int x, int y) {
-    set_midpoint(rect, x, y);
+int set_midpoint(ball_type & b, int x, int y) {
+    set_midpoint(b.b, x, y);
 }
 
 template <typename Shape>
@@ -77,8 +83,8 @@ int rng(int min, int max) {
     return dis(gen);
 }
 
-template <typename Shape, typename Dir>
-int ai_update(const Shape & ball, const Dir & dir, const Shape & paddle) {
+template <typename Ball, typename Shape, typename Dir>
+int ai_update(const Ball & ball, const Dir & dir, const Shape & paddle) {
     // find the angle of the ball
     // std::cout << "dir is : " << dir.x << ", " << dir.y << '\n';
     auto tan_angle = dir.y / dir.x;
@@ -244,12 +250,13 @@ int main(int argc, char* argv[]) {
                 });
             }
 
+
             rw.clear();
             rw.draw(top);
             rw.draw(bottom);
             rw.draw(left);
             rw.draw(right);
-            rw.draw(ball);
+            rw.draw(ball.b);
             rw.display();
         }
     } catch (std::exception & e) {
