@@ -177,13 +177,14 @@ int main(int argc, char* argv[]) {
         set_midpoint(right, W - 50, 500);
 
         // ball, direction, and sound
-        sf::RectangleShape ball(sf::Vector2f(15, 15));
-        sf::Vector2f dir(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f); // 45 degree angle
-
-        auto b2 = ball_type {
+#if 1
+        auto ball = ball_type {
             sf::Vector2f(15, 15), 
             sf::Vector2f(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f) }; // 45 degree angle;
-    
+#else 
+        sf::RectangleShape ball(sf::Vector2f(15, 15));
+#endif
+        sf::Vector2f dir(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f); // 45 degree angle
 
         sf::SoundBuffer sound_buff;
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
