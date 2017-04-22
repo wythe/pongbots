@@ -76,9 +76,9 @@ int set_midpoint(ball_type & b, int y) {
 }
 
 int rng(int min, int max) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(min, max);
+    static std::random_device rd;
+    static std::mt19937 gen(rd());
+    static std::uniform_int_distribution<> dis(min, max);
     return dis(gen);
 }
 
@@ -123,25 +123,29 @@ void move_paddle(sf::RectangleShape & paddle, float distance) {
     else paddle.move(0, distance);
 }
 
-void bounce(const sf::IntRect & ball, const sf::IntRect & wall, sf::Vector2f & angle, sf::Sound & sound) {
-    const bool topleft = wall.contains(ball.left, ball.top);
-    const bool topright = wall.contains(ball.left + ball.width, ball.top);
-    const bool botleft = wall.contains(ball.left, ball.top + ball.height);
-    const bool botright = wall.contains(ball.left + ball.width, ball.top + ball.height);
+#if 0
+template <typename T, typename Action>
+void collide(const ball_type & ball, T wall, Action action) {
+}
+#endif
+
+template <typename T>
+void bounce(ball_type & ball, const T & wall, sf::Sound & sound) {
+    auto b = to_rect(ball);
+    auto w = to_rect(wall);
+    const bool topleft = w.contains(b.left, b.top);
+    const bool topright = w.contains(b.left + b.width, b.top);
+    const bool botleft = w.contains(b.left, b.top + b.height);
+    const bool botright = w.contains(b.left + b.width, b.top + b.height);
 
     if (!topleft && !topright && !botleft && !botright) return;
 
-    if ((topleft || botleft) && !topright && !botright) angle.x = std::abs(angle.x); // left of ball
-    else if ((topright || botright) && !topleft && !botleft) angle.x = -std::abs(angle.x); // right of ball
-    else if ((topleft || topright) && !botleft && !botright) angle.y = std::abs(angle.y); // top of ball
-    else if ((botright || botleft) && !topleft && !topright) angle.y = -std::abs(angle.y);// bottom of ball
+    if ((topleft || botleft) && !topright && !botright) ball.d.x = std::abs(ball.d.x); // left of ball
+    else if ((topright || botright) && !topleft && !botleft) ball.d.x = -std::abs(ball.d.x); // right of ball
+    else if ((topleft || topright) && !botleft && !botright) ball.d.y = std::abs(ball.d.y); // top of ball
+    else if ((botright || botleft) && !topleft && !topright) ball.d.y = -std::abs(ball.d.y);// bottom of ball
     
     // sound.play();
-}
-
-template <typename Ball, typename T>
-void bounce(const Ball & ball, const T & wall, sf::Vector2f & angle, sf::Sound & sound) {
-    bounce(to_rect(ball), to_rect(wall), angle, sound);
 }
 
 template <typename T, typename Action>
@@ -229,10 +233,10 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (!paused) {
-                bounce(ball, bottom, ball.d, sound);
-                bounce(ball, top, ball.d, sound);
-                bounce(ball, left, ball.d, sound);
-                bounce(ball, right, ball.d, sound);
+                bounce(ball, bottom, sound);
+                bounce(ball, top, sound);
+                bounce(ball, left, sound);
+                bounce(ball, right, sound);
                 advance(ball, dt);
                 if (ball.d.x > 0) move_paddle(right, ai_update(ball, right) * speed * dt);
                 else move_paddle(left, ai_update(ball, left) * speed * dt);
