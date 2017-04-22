@@ -13,6 +13,13 @@ const double pi = std::acos(-1);
 const int W = 800;
 const int H = 600;
 
+enum side {
+    left,
+    right,
+    top,
+    bottom
+};
+
 struct ball_type {
     ball_type(sf::Vector2f size, sf::Vector2f angle) : b(size), d(angle) {}
     ball_type(const ball_type &) = default;
@@ -123,14 +130,8 @@ void move_paddle(sf::RectangleShape & paddle, float distance) {
     else paddle.move(0, distance);
 }
 
-#if 0
 template <typename T, typename Action>
 void collide(const ball_type & ball, T wall, Action action) {
-}
-#endif
-
-template <typename T>
-void bounce(ball_type & ball, const T & wall, sf::Sound & sound) {
     auto b = to_rect(ball);
     auto w = to_rect(wall);
     const bool topleft = w.contains(b.left, b.top);
@@ -140,12 +141,10 @@ void bounce(ball_type & ball, const T & wall, sf::Sound & sound) {
 
     if (!topleft && !topright && !botleft && !botright) return;
 
-    if ((topleft || botleft) && !topright && !botright) ball.d.x = std::abs(ball.d.x); // left of ball
-    else if ((topright || botright) && !topleft && !botleft) ball.d.x = -std::abs(ball.d.x); // right of ball
-    else if ((topleft || topright) && !botleft && !botright) ball.d.y = std::abs(ball.d.y); // top of ball
-    else if ((botright || botleft) && !topleft && !topright) ball.d.y = -std::abs(ball.d.y);// bottom of ball
-    
-    // sound.play();
+    if ((topleft || botleft) && !topright && !botright) action(side::left);
+    else if ((topright || botright) && !topleft && !botleft) action(side::right);
+    else if ((topleft || topright) && !botleft && !botright) action(side::top);
+    else if ((botright || botleft) && !topleft && !topright) action(side::bottom);
 }
 
 template <typename T, typename Action>
@@ -203,7 +202,7 @@ int main(int argc, char* argv[]) {
         float dt;
         float dt_count = 0;
         int frames = 0;
-        bool paused;
+        bool paused = false;
 
         // the loop
         while (rw.isOpen()) {
@@ -233,10 +232,18 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (!paused) {
-                bounce(ball, bottom, sound);
-                bounce(ball, top, sound);
-                bounce(ball, left, sound);
-                bounce(ball, right, sound);
+                collide(ball, bottom, [&](const auto &) {
+                    ball.d.y = -std::abs(ball.d.y);
+                });
+                collide(ball, top, [&](const auto &) {
+                    ball.d.y = std::abs(ball.d.y);
+                });
+                collide(ball, left, [&](const auto &) {
+                    ball.d.x = std::abs(ball.d.x);
+                });
+                collide(ball, right, [&](const auto &) {
+                    ball.d.x = -std::abs(ball.d.x);
+                });
                 advance(ball, dt);
                 if (ball.d.x > 0) move_paddle(right, ai_update(ball, right) * speed * dt);
                 else move_paddle(left, ai_update(ball, left) * speed * dt);
