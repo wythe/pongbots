@@ -8,7 +8,7 @@
 
 using std::cout;
 
-const float speed = 500.f; // pixels per second when moving ball and paddles
+const float speed = 500.f; // pixels per second when moving paddles
 const double pi = std::acos(-1);
 const int W = 800;
 const int H = 600;
@@ -22,9 +22,13 @@ struct ball_type {
     void move(T x, T y) { b.move(x, y); }
 
     sf::RectangleShape b;
-    sf::Vector2f d;
-    float speed = 400;
+    sf::Vector2f d; // direction
+    float s = 500.f; // speed
 };
+
+void advance(ball_type & b, float dt) {
+    b.move(b.d.x * b.s * dt, b.d.y * b.s * dt);
+}
 
 template <typename T>
 sf::IntRect to_rect(T const & shape) {
@@ -71,12 +75,6 @@ int set_midpoint(ball_type & b, int y) {
     set_midpoint(b.b, y);
 }
 
-template <typename Ball, typename Shape>
-int ai_update(const Ball & ball, const Shape & paddle) {
-    if (mid_y(ball) > mid_y(paddle)) return 1;
-    return -1;
-}
-
 int rng(int min, int max) {
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -84,7 +82,7 @@ int rng(int min, int max) {
     return dis(gen);
 }
 
-template <typename Ball, typename Shape, typename Dir>
+template <typename Ball, typename Shape>
 int ai_update(const Ball & ball, const Shape & paddle) {
     // find the angle of the ball
     auto tan_angle = ball.d.y / ball.d.x;
@@ -125,7 +123,7 @@ void move_paddle(sf::RectangleShape & paddle, float distance) {
     else paddle.move(0, distance);
 }
 
-void bounce(const sf::IntRect & ball, const sf::IntRect & wall, sf::Vector2f & vec, sf::Sound & sound) {
+void bounce(const sf::IntRect & ball, const sf::IntRect & wall, sf::Vector2f & angle, sf::Sound & sound) {
     const bool topleft = wall.contains(ball.left, ball.top);
     const bool topright = wall.contains(ball.left + ball.width, ball.top);
     const bool botleft = wall.contains(ball.left, ball.top + ball.height);
@@ -133,17 +131,17 @@ void bounce(const sf::IntRect & ball, const sf::IntRect & wall, sf::Vector2f & v
 
     if (!topleft && !topright && !botleft && !botright) return;
 
-    if ((topleft || botleft) && !topright && !botright) vec.x = std::abs(vec.x); // left of ball
-    else if ((topright || botright) && !topleft && !botleft) vec.x = -std::abs(vec.x); // right of ball
-    else if ((topleft || topright) && !botleft && !botright) vec.y = std::abs(vec.y); // top of ball
-    else if ((botright || botleft) && !topleft && !topright) vec.y = -std::abs(vec.y);// bottom of ball
+    if ((topleft || botleft) && !topright && !botright) angle.x = std::abs(angle.x); // left of ball
+    else if ((topright || botright) && !topleft && !botleft) angle.x = -std::abs(angle.x); // right of ball
+    else if ((topleft || topright) && !botleft && !botright) angle.y = std::abs(angle.y); // top of ball
+    else if ((botright || botleft) && !topleft && !topright) angle.y = -std::abs(angle.y);// bottom of ball
     
     // sound.play();
 }
 
 template <typename Ball, typename T>
-void bounce(const Ball & ball, const T & wall, sf::Vector2f & vec, sf::Sound & sound) {
-    bounce(to_rect(ball), to_rect(wall), vec, sound);
+void bounce(const Ball & ball, const T & wall, sf::Vector2f & angle, sf::Sound & sound) {
+    bounce(to_rect(ball), to_rect(wall), angle, sound);
 }
 
 template <typename T, typename Action>
@@ -183,14 +181,9 @@ int main(int argc, char* argv[]) {
         set_midpoint(right, W - 50, 500);
 
         // ball, direction, and sound
-#if 1
         auto ball = ball_type {
             sf::Vector2f(15, 15), 
             sf::Vector2f(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f) }; // 45 degree angle;
-#else 
-        sf::RectangleShape ball(sf::Vector2f(15, 15));
-#endif
-        sf::Vector2f dx(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f); // 45 degree angle
 
         sf::SoundBuffer sound_buff;
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
@@ -240,20 +233,15 @@ int main(int argc, char* argv[]) {
                 bounce(ball, top, ball.d, sound);
                 bounce(ball, left, ball.d, sound);
                 bounce(ball, right, ball.d, sound);
-#if 0
-                ball.advance(dt);
-#else
-                ball.move(ball.d.x * speed * dt, ball.d.y * speed * dt);
-#endif
-                if (ball.d.x > 0) move_paddle(right, ai_update(ball, dx, right) * speed * dt);
-                else move_paddle(left, ai_update(ball, dx, left) * speed * dt);
+                advance(ball, dt);
+                if (ball.d.x > 0) move_paddle(right, ai_update(ball, right) * speed * dt);
+                else move_paddle(left, ai_update(ball, left) * speed * dt);
 
                 score(ball, [&] { 
                     std::cout << "score!\n"; 
                     set_midpoint(ball, 400, rng(100, 500));
                 });
             }
-
 
             rw.clear();
             rw.draw(top);
