@@ -8,6 +8,17 @@
 
 using std::cout;
 
+// The Drawable concept
+// If concepts were supported in the compiler, this is what it would look something like this:
+#if 0 
+template <class T>
+concept bool Drawable() {
+    return requires(T a) {
+        a.shape -> sf::Drawable;
+    };
+}
+#endif
+
 const float speed = 500.f; // pixels per second when moving paddles
 const double pi = std::acos(-1);
 const int W = 800;
@@ -45,62 +56,34 @@ void advance(ball_type & b, float dt) {
     b.move(b.d.x * b.s * dt, b.d.y * b.s * dt);
 }
 
-template <typename T>
-sf::IntRect to_rect(T const & shape) {
+template <typename Drawable>
+sf::IntRect to_rect(Drawable & d) {
+    return sf::IntRect(d.shape.getPosition().x, d.shape.getPosition().y, d.shape.getSize().x, d.shape.getSize().y);
+}
+
+// walls are still RectangleShapes
+sf::IntRect to_rect(sf::RectangleShape & shape) {
     return sf::IntRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
 }
 
-sf::IntRect to_rect(const ball_type & b) {
-    return to_rect(b.shape);
+template <typename Drawable>
+int mid_y(const Drawable & d) {
+    return d.shape.getPosition().y + d.shape.getSize().y / 2;
 }
 
-sf::IntRect to_rect(const paddle_type & b) {
-    return to_rect(b.shape);
+template <typename Drawable>
+int mid_x(const Drawable & d) {
+    return d.shape.getPosition().x + d.shape.getSize().x / 2;
 }
 
-template <typename Shape>
-int mid_y(const Shape & rect) {
-    return rect.getPosition().y + rect.getSize().y / 2;
+template <typename Drawable>
+int set_midpoint(Drawable & d, int x, int y) {
+    d.shape.setPosition(x - d.shape.getSize().x / 2, y - d.shape.getSize().y / 2);
 }
 
-int mid_y(const ball_type & b) {
-    return mid_y(b.shape);
-}
-
-template <typename Shape>
-int mid_x(const Shape & rect) {
-    return rect.getPosition().x + rect.getSize().x / 2;
-}
-
-int mid_x(const ball_type & b) {
-    return mid_x(b.shape);
-}
-
-template <typename Shape>
-// is a sf::RectangleShape
-int set_midpoint(Shape & rect, int x, int y) {
-    rect.setPosition(x - rect.getSize().x / 2, y - rect.getSize().y / 2);
-}
-
-template <typename Shape>
-int set_midpoint(Shape & rect, int y) {
-    rect.setPosition(rect.getPosition().x, y - rect.getSize().y / 2);
-}
-
-int set_midpoint(ball_type & b, int x, int y) {
-    set_midpoint(b.shape, x, y);
-}
-
-int set_midpoint(ball_type & b, int y) {
-    set_midpoint(b.shape, y);
-}
-
-int set_midpoint(paddle_type & b, int x, int y) {
-    set_midpoint(b.shape, x, y);
-}
-
-int set_midpoint(paddle_type & b, int y) {
-    set_midpoint(b.shape, y);
+template <typename Drawable>
+int set_midpoint(Drawable & d, int y) {
+    d.shape.setPosition(d.shape.getPosition().x, y - d.shape.getSize().y / 2);
 }
 
 template <typename Window, typename Drawable>
@@ -126,33 +109,21 @@ int rng(int min, int max) {
     return dis(gen);
 }
 
-template <typename Ball, typename Shape>
-int ai_update(const Ball & ball, const Shape & paddle) {
+template <typename T, typename U>
+// T and U are Drawable
+int ai_update(const T & ball, const U & paddle) {
     // find the angle of the ball
     auto tan_angle = ball.d.y / ball.d.x;
 
-    // std::cout << "tan_angle is " << tan_angle << '\n';
     auto angle = std::atan(tan_angle);
 
-    // std::cout << "angle is " << angle << '\n';
-
-    // now find the adjacent (distance from ball to paddle)
-    auto adj = mid_x(paddle) - mid_x(ball);
-    // std::cout << "adj is " << adj << '\n';
-
-    // calculate the opposite
-    auto opp = std::tan(angle) * adj;
-    // std::cout << "opp is " << opp << '\n';
-    
-    // std::cout << "mid_y(ball) is " << mid_y(ball) << '\n';
-    int dest_y = mid_y(ball) + opp;
-    // std::cout << "dest_y is " << dest_y << '\n';
+    auto adj = mid_x(paddle) - mid_x(ball); // now find the adjacent (distance from ball to paddle)
+    auto opp = std::tan(angle) * adj; // calculate the opposite
+    int dest_y = mid_y(ball) + opp; // destination of ball on the paddle's y axis
 
     // if greater than 800, then calc d'
-    if (dest_y > H) {
-        dest_y = H - (dest_y - H);
-        // std::cout << "dest_y' = " << dest_y << '\n';
-    }
+    if (dest_y > H) dest_y = H - (dest_y - H);
+
     // should just return dest_y and let move_paddle do the moving
     auto d = dest_y - mid_y(paddle);
 
@@ -160,20 +131,12 @@ int ai_update(const Ball & ball, const Shape & paddle) {
     return (dest_y > mid_y(paddle)) ? 1 : -1;
 }
 
-template <typename Ball>
-int ai_update(const Ball & ball, const paddle_type & paddle) {
-    return ai_update(ball, paddle.shape);
-}
-
-void move_paddle(sf::RectangleShape & paddle, float distance) {
-    auto y = mid_y(paddle) + distance;
-    if (y < 100) set_midpoint(paddle, 100);
-    else if (y > 500) set_midpoint(paddle, 500);
-    else paddle.move(0, distance);
-}
-
-void move_paddle(paddle_type & paddle, float distance) {
-    move_paddle(paddle.shape, distance);
+template <typename Drawable>
+void move_paddle(Drawable & d, float distance) {
+    auto y = mid_y(d) + distance;
+    if (y < 100) set_midpoint(d, 100);
+    else if (y > 500) set_midpoint(d, 500);
+    else d.shape.move(0, distance);
 }
 
 template <typename T, typename Action>
@@ -193,8 +156,8 @@ void collide(const ball_type & ball, T wall, Action action) {
     else if ((botright || botleft) && !topleft && !topright) action(side::bottom);
 }
 
-template <typename T, typename Action>
-void score(const T & ball, Action action) {
+template <typename Drawable, typename Action>
+void score(const Drawable & ball, Action action) {
     auto r = to_rect(ball);
     auto field = sf::IntRect(0, 0, W, H);
     if (!r.intersects(field)) action();
@@ -204,53 +167,43 @@ int main(int argc, char* argv[]) {
 
     try {
         // main window
-        sf::RenderWindow rw(sf::VideoMode(W, H), "pong");
+        sf::RenderWindow rw{sf::VideoMode(W, H), "pong"};
         rw.setFramerateLimit(120);
 
         // clock for determining time between frame displays
-        sf::Clock clock;
+        auto clock = sf::Clock();
 
         // top bar
-        sf::RectangleShape top(sf::Vector2f(W, 10));
+        auto top = sf::RectangleShape{sf::Vector2f(W, 10)};
         auto c = sf::Color::White;
         c.a = 155;
         top.setFillColor(c);
         top.setPosition(0, 0);
 
         // bottom bar
-        sf::RectangleShape bottom = top;
+        auto bottom = top;
         bottom.setPosition(0, H - 10);
 
-#if 1
         // left paddle
-        paddle_type left(sf::Vector2f(10, 80));
+        auto left = paddle_type{sf::Vector2f(10, 80)};
         set_midpoint(left, 50, 300);
 
         // right paddle
-        paddle_type right = left;
+        auto right = left;
         set_midpoint(right, W - 50, 500);
-#else
-        // left paddle
-        sf::RectangleShape left(sf::Vector2f(10, 80));
-        set_midpoint(left, 50, 300);
-
-        // right paddle
-        sf::RectangleShape right = left;
-        set_midpoint(right, W - 50, 500);
-#endif
+        
         // ball, direction, and sound
         auto ball = ball_type {
             sf::Vector2f(15, 15), 
             sf::Vector2f(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f) }; // 45 degree angle;
 
-        sf::SoundBuffer sound_buff;
+        auto sound_buff = sf::SoundBuffer();
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
         sf::Sound sound(sound_buff);
         set_midpoint(ball, 400, 20);
 
-
         // font 
-        sf::Font font;
+        auto font = sf::Font();
         if (!font.loadFromFile("assets/FreeMono.ttf")) throw std::runtime_error("cannot open font");
     
         clock.restart();
@@ -287,16 +240,16 @@ int main(int argc, char* argv[]) {
                 }
             }
             if (!paused) {
-                collide(ball, bottom, [&](const auto &) {
+                collide(ball, bottom, [&](auto) {
                     ball.d.y = -std::abs(ball.d.y);
                 });
-                collide(ball, top, [&](const auto &) {
+                collide(ball, top, [&](auto) {
                     ball.d.y = std::abs(ball.d.y);
                 });
-                collide(ball, left, [&](const auto &) {
+                collide(ball, left, [&](auto) {
                     ball.d.x = std::abs(ball.d.x);
                 });
-                collide(ball, right, [&](const auto &) {
+                collide(ball, right, [&](auto) {
                     ball.d.x = -std::abs(ball.d.x);
                 });
                 advance(ball, dt);
