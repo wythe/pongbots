@@ -21,16 +21,24 @@ enum side {
 };
 
 struct ball_type {
-    ball_type(sf::Vector2f size, sf::Vector2f angle) : b(size), d(angle) {}
+    ball_type(sf::Vector2f size, sf::Vector2f angle) : shape(size), d(angle) {}
     ball_type(const ball_type &) = default;
     ball_type & operator=(const ball_type &) = default;
 
     template <typename T>
-    void move(T x, T y) { b.move(x, y); }
+    void move(T x, T y) { shape.move(x, y); }
 
-    sf::RectangleShape b;
+    sf::RectangleShape shape;
     sf::Vector2f d; // direction
     float s = 500.f; // speed
+};
+
+struct paddle_type {
+    paddle_type(sf::Vector2f size) : shape(size) {};
+    paddle_type(const paddle_type &) = default;
+    paddle_type & operator=(const paddle_type &) = default;
+    sf::RectangleShape shape;
+    int dest_y;
 };
 
 void advance(ball_type & b, float dt) {
@@ -43,7 +51,11 @@ sf::IntRect to_rect(T const & shape) {
 }
 
 sf::IntRect to_rect(const ball_type & b) {
-    return to_rect(b.b);
+    return to_rect(b.shape);
+}
+
+sf::IntRect to_rect(const paddle_type & b) {
+    return to_rect(b.shape);
 }
 
 template <typename Shape>
@@ -52,7 +64,7 @@ int mid_y(const Shape & rect) {
 }
 
 int mid_y(const ball_type & b) {
-    return mid_y(b.b);
+    return mid_y(b.shape);
 }
 
 template <typename Shape>
@@ -61,16 +73,13 @@ int mid_x(const Shape & rect) {
 }
 
 int mid_x(const ball_type & b) {
-    return mid_x(b.b);
+    return mid_x(b.shape);
 }
 
 template <typename Shape>
+// is a sf::RectangleShape
 int set_midpoint(Shape & rect, int x, int y) {
     rect.setPosition(x - rect.getSize().x / 2, y - rect.getSize().y / 2);
-}
-
-int set_midpoint(ball_type & b, int x, int y) {
-    set_midpoint(b.b, x, y);
 }
 
 template <typename Shape>
@@ -78,9 +87,32 @@ int set_midpoint(Shape & rect, int y) {
     rect.setPosition(rect.getPosition().x, y - rect.getSize().y / 2);
 }
 
-int set_midpoint(ball_type & b, int y) {
-    set_midpoint(b.b, y);
+int set_midpoint(ball_type & b, int x, int y) {
+    set_midpoint(b.shape, x, y);
 }
+
+int set_midpoint(ball_type & b, int y) {
+    set_midpoint(b.shape, y);
+}
+
+int set_midpoint(paddle_type & b, int x, int y) {
+    set_midpoint(b.shape, x, y);
+}
+
+int set_midpoint(paddle_type & b, int y) {
+    set_midpoint(b.shape, y);
+}
+
+template <typename Window, typename Drawable>
+void draw(Window & rw, Drawable & d) {
+    rw.draw(d);
+}
+
+template <typename Window>
+void draw(Window & rw, paddle_type & paddle) {
+    rw.draw(paddle.shape);
+}
+
 
 int rng(int min, int max) {
     static std::random_device rd;
@@ -123,11 +155,20 @@ int ai_update(const Ball & ball, const Shape & paddle) {
     return (dest_y > mid_y(paddle)) ? 1 : -1;
 }
 
+template <typename Ball>
+int ai_update(const Ball & ball, const paddle_type & paddle) {
+    return ai_update(ball, paddle.shape);
+}
+
 void move_paddle(sf::RectangleShape & paddle, float distance) {
     auto y = mid_y(paddle) + distance;
     if (y < 100) set_midpoint(paddle, 100);
     else if (y > 500) set_midpoint(paddle, 500);
     else paddle.move(0, distance);
+}
+
+void move_paddle(paddle_type & paddle, float distance) {
+    move_paddle(paddle.shape, distance);
 }
 
 template <typename T, typename Action>
@@ -175,6 +216,15 @@ int main(int argc, char* argv[]) {
         sf::RectangleShape bottom = top;
         bottom.setPosition(0, H - 10);
 
+#if 1
+        // left paddle
+        paddle_type left(sf::Vector2f(10, 80));
+        set_midpoint(left, 50, 300);
+
+        // right paddle
+        paddle_type right = left;
+        set_midpoint(right, W - 50, 500);
+#else
         // left paddle
         sf::RectangleShape left(sf::Vector2f(10, 80));
         set_midpoint(left, 50, 300);
@@ -182,7 +232,7 @@ int main(int argc, char* argv[]) {
         // right paddle
         sf::RectangleShape right = left;
         set_midpoint(right, W - 50, 500);
-
+#endif
         // ball, direction, and sound
         auto ball = ball_type {
             sf::Vector2f(15, 15), 
@@ -257,9 +307,9 @@ int main(int argc, char* argv[]) {
             rw.clear();
             rw.draw(top);
             rw.draw(bottom);
-            rw.draw(left);
-            rw.draw(right);
-            rw.draw(ball.b);
+            draw(rw, left);
+            draw(rw, right);
+            rw.draw(ball.shape);
             rw.display();
         }
     } catch (std::exception & e) {
