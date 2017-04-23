@@ -109,6 +109,11 @@ void draw(Window & rw, Drawable & d) {
 }
 
 template <typename Window>
+void draw(Window & rw, ball_type & ball) {
+    rw.draw(ball.shape);
+}
+
+template <typename Window>
 void draw(Window & rw, paddle_type & paddle) {
     rw.draw(paddle.shape);
 }
@@ -305,11 +310,11 @@ int main(int argc, char* argv[]) {
             }
 
             rw.clear();
-            rw.draw(top);
-            rw.draw(bottom);
+            draw(rw, top);
+            draw(rw, bottom);
             draw(rw, left);
             draw(rw, right);
-            rw.draw(ball.shape);
+            draw(rw, ball);
             rw.display();
         }
     } catch (std::exception & e) {
