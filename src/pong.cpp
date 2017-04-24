@@ -105,13 +105,13 @@ void draw(Window & rw, paddle_type & paddle) {
 int rng(int min, int max) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
-    static std::uniform_int_distribution<> dis(min, max);
+    std::uniform_int_distribution<> dis(min, max);
     return dis(gen);
 }
 
-template <typename T, typename U>
+template <typename T>
 // T and U are Drawable
-int ai_update(const T & ball, const U & paddle) {
+int ai_update(const T & ball, paddle_type & paddle) {
     // find the angle of the ball
     auto tan_angle = ball.d.y / ball.d.x;
 
@@ -119,20 +119,31 @@ int ai_update(const T & ball, const U & paddle) {
 
     auto adj = mid_x(paddle) - mid_x(ball); // now find the adjacent (distance from ball to paddle)
     auto opp = std::tan(angle) * adj; // calculate the opposite
-    int dest_y = mid_y(ball) + opp; // destination of ball on the paddle's y axis
+    paddle.dest_y = mid_y(ball) + opp; // destination of ball on the paddle's y axis
 
     // if greater than 800, then calc d'
-    if (dest_y > H) dest_y = H - (dest_y - H);
+    if (paddle.dest_y > H) paddle.dest_y = H - (paddle.dest_y - H);
 
     // should just return dest_y and let move_paddle do the moving
-    auto d = dest_y - mid_y(paddle);
+    auto d = paddle.dest_y - mid_y(paddle);
 
     if (std::abs(d) <= 1) return 0;
-    return (dest_y > mid_y(paddle)) ? 1 : -1;
+    return (paddle.dest_y > mid_y(paddle)) ? 1 : -1;
 }
 
-template <typename Drawable>
-void move_paddle(Drawable & d, float distance) {
+void move_paddle(paddle_type & paddle, float speed, float dt) {
+    auto m = mid_y(paddle);
+    if (paddle.dest_y < 100) paddle.dest_y = 100;
+    else if (paddle.dest_y > 500) paddle.dest_y = 500;
+
+    auto distance = paddle.dest_y - m;
+    if (std::abs(distance) <= 5) return;
+
+    auto sign = (paddle.dest_y > m) ? 1 : -1;
+    paddle.shape.move(0, sign * speed * dt);
+}
+
+void move_paddle(paddle_type & d, float distance) {
     auto y = mid_y(d) + distance;
     if (y < 100) set_midpoint(d, 100);
     else if (y > 500) set_midpoint(d, 500);
@@ -212,6 +223,8 @@ int main(int argc, char* argv[]) {
         int frames = 0;
         bool paused = false;
 
+        ai_update(ball, right);
+
         // the loop
         while (rw.isOpen()) {
             dt = clock.restart().asSeconds();
@@ -248,17 +261,21 @@ int main(int argc, char* argv[]) {
                 });
                 collide(ball, left, [&](auto) {
                     ball.d.x = std::abs(ball.d.x);
+                    ai_update(ball, right);
                 });
                 collide(ball, right, [&](auto) {
                     ball.d.x = -std::abs(ball.d.x);
+                    ai_update(ball, left);
                 });
                 advance(ball, dt);
-                if (ball.d.x > 0) move_paddle(right, ai_update(ball, right) * speed * dt);
-                else move_paddle(left, ai_update(ball, left) * speed * dt);
+                move_paddle(right, speed, dt);
+                move_paddle(left, speed, dt);
 
                 score(ball, [&] { 
                     std::cout << "score!\n"; 
                     set_midpoint(ball, 400, rng(100, 500));
+                    ai_update(ball, right);
+                    ai_update(ball, left);
                 });
             }
 
