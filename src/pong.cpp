@@ -14,7 +14,7 @@ using std::cout;
 template <class T>
 concept bool Drawable() {
     return requires(T a) {
-        a.shape -> sf::Drawable;
+        a.shape -> sf::RectangleShape;
     };
 }
 #endif
@@ -25,10 +25,7 @@ const int W = 800;
 const int H = 600;
 
 enum side {
-    left,
-    right,
-    top,
-    bottom
+    left, right, top, bottom
 };
 
 struct ball_type {
@@ -88,19 +85,13 @@ int set_midpoint(Drawable & d, int y) {
 
 template <typename Window, typename Drawable>
 void draw(Window & rw, Drawable & d) {
-    rw.draw(d);
+    rw.draw(d.shape);
 }
 
 template <typename Window>
-void draw(Window & rw, ball_type & ball) {
-    rw.draw(ball.shape);
+void draw(Window & rw, sf::RectangleShape & r) {
+    rw.draw(r);
 }
-
-template <typename Window>
-void draw(Window & rw, paddle_type & paddle) {
-    rw.draw(paddle.shape);
-}
-
 
 int rng(int min, int max) {
     static std::random_device rd;
@@ -109,9 +100,8 @@ int rng(int min, int max) {
     return dis(gen);
 }
 
-template <typename T>
-// T and U are Drawable
-int ai_update(const T & ball, paddle_type & paddle) {
+template <typename Drawable>
+int ai_update(const Drawable & ball, paddle_type & paddle) {
     // find the angle of the ball
     auto tan_angle = ball.d.y / ball.d.x;
 
@@ -123,12 +113,7 @@ int ai_update(const T & ball, paddle_type & paddle) {
 
     // if greater than 800, then calc d'
     if (paddle.dest_y > H) paddle.dest_y = H - (paddle.dest_y - H);
-
-    // should just return dest_y and let move_paddle do the moving
-    auto d = paddle.dest_y - mid_y(paddle);
-
-    if (std::abs(d) <= 1) return 0;
-    return (paddle.dest_y > mid_y(paddle)) ? 1 : -1;
+    else if (paddle.dest_y < 0) paddle.dest_y = -paddle.dest_y;
 }
 
 void move_paddle(paddle_type & paddle, float speed, float dt) {
@@ -221,7 +206,6 @@ int main(int argc, char* argv[]) {
         float dt;
         float dt_count = 0;
         int frames = 0;
-        bool paused = false;
 
         ai_update(ball, right);
 
@@ -244,40 +228,37 @@ int main(int argc, char* argv[]) {
                                     break;
                             }
                         break;
-                    case sf::Event::LostFocus:
-                        paused = true;
-                        break;
-                    case sf::Event::GainedFocus:
-                        paused = false;
-                        break;
                 }
             }
-            if (!paused) {
-                collide(ball, bottom, [&](auto) {
-                    ball.d.y = -std::abs(ball.d.y);
-                });
-                collide(ball, top, [&](auto) {
-                    ball.d.y = std::abs(ball.d.y);
-                });
-                collide(ball, left, [&](auto) {
-                    ball.d.x = std::abs(ball.d.x);
-                    ai_update(ball, right);
-                });
-                collide(ball, right, [&](auto) {
-                    ball.d.x = -std::abs(ball.d.x);
-                    ai_update(ball, left);
-                });
-                advance(ball, dt);
-                move_paddle(right, speed, dt);
-                move_paddle(left, speed, dt);
 
-                score(ball, [&] { 
-                    std::cout << "score!\n"; 
-                    set_midpoint(ball, 400, rng(100, 500));
+            collide(ball, bottom, [&](auto) {
+                ball.d.y = -std::abs(ball.d.y);
+            });
+            collide(ball, top, [&](auto) {
+                ball.d.y = std::abs(ball.d.y);
+            });
+            collide(ball, left, [&](auto) {
+                ball.d.x = std::abs(ball.d.x);
+                ai_update(ball, right);
+            });
+            collide(ball, right, [&](auto) {
+                ball.d.x = -std::abs(ball.d.x);
+                ai_update(ball, left);
+            });
+            advance(ball, dt);
+            move_paddle(right, speed, dt);
+            move_paddle(left, speed, dt);
+
+            score(ball, [&] { 
+                set_midpoint(ball, 400, rng(100, 500));
+                if (ball.d.x > 0) {
+                    std::cout << "score left!\n"; 
                     ai_update(ball, right);
+                } else {
+                    std::cout << "score right!\n"; 
                     ai_update(ball, left);
-                });
-            }
+                }
+            });
 
             rw.clear();
             draw(rw, top);
