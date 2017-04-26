@@ -159,6 +159,13 @@ void score(const Drawable & ball, Action action) {
     if (!r.intersects(field)) action();
 }
 
+void update_trajectory(ball_type & ball, const paddle_type & paddle) {
+    auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.shape.getSize().y / 2);
+    auto angle = d * pi / 3;
+    ball.d.x = std::cos(angle);
+    ball.d.y = std::sin(angle);
+}
+
 int main(int argc, char* argv[]) {
 
     try {
@@ -238,10 +245,12 @@ int main(int argc, char* argv[]) {
                 ball.d.y = std::abs(ball.d.y);
             });
             collide(ball, left, [&](auto) {
+                update_trajectory(ball, left);
                 ball.d.x = std::abs(ball.d.x);
                 ai_update(ball, right);
             });
             collide(ball, right, [&](auto) {
+                update_trajectory(ball, right);
                 ball.d.x = -std::abs(ball.d.x);
                 ai_update(ball, left);
             });
