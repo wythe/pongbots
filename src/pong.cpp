@@ -103,6 +103,25 @@ int rng(int min, int max) {
     return dis(gen);
 }
 
+#if 1
+template <typename Drawable>
+int ai_update(const Drawable & ball, paddle_type & paddle) {
+    // calc d
+    // find the angle of the ball
+    auto tan_angle = ball.d.y / ball.d.x;
+    auto angle = std::atan(tan_angle);
+    auto adj = mid_x(paddle) - mid_x(ball); // now find the adjacent (distance from ball to paddle)
+    auto opp = std::tan(angle) * adj; // calculate the opposite
+    int d = mid_y(ball) + opp; // destination of ball on the paddle's y axis
+
+    int h = playfield.height;
+    int n = d / h;
+    int dp = d % h;
+    paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
+
+    paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);
+}
+#else
 template <typename Drawable>
 int ai_update(const Drawable & ball, paddle_type & paddle) {
     // find the angle of the ball
@@ -121,11 +140,12 @@ int ai_update(const Drawable & ball, paddle_type & paddle) {
     if (paddle.dest_y > h) paddle.dest_y = h - (paddle.dest_y - h);
     else if (paddle.dest_y < 0) paddle.dest_y = -paddle.dest_y;
 }
+#endif
 
 void move_paddle(paddle_type & paddle, float speed, float dt) {
     auto m = mid_y(paddle);
-    if (paddle.dest_y < 100) paddle.dest_y = 100;
-    else if (paddle.dest_y > 500) paddle.dest_y = 500;
+    if (paddle.dest_y < 50) paddle.dest_y = 50;
+    else if (paddle.dest_y > 550) paddle.dest_y = 550;
 
     auto distance = paddle.dest_y - m;
     if (std::abs(distance) <= 1) return;
