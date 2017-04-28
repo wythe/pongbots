@@ -23,6 +23,9 @@ const float speed = 500.f; // pixels per second when moving paddles
 const double pi = std::acos(-1);
 const int W = 800;
 const int H = 600;
+const sf::Vector2f paddle_size(10, 80); 
+const int bar_h = 10; // bar and paddle width
+const sf::IntRect playfield(0, bar_h, W, H - 2 * bar_h);
 
 enum side {
     left, right, top, bottom
@@ -111,8 +114,11 @@ int ai_update(const Drawable & ball, paddle_type & paddle) {
     auto opp = std::tan(angle) * adj; // calculate the opposite
     paddle.dest_y = mid_y(ball) + opp; // destination of ball on the paddle's y axis
 
+    paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);
+
     // if greater than 800, then calc d'
-    if (paddle.dest_y > H) paddle.dest_y = H - (paddle.dest_y - H);
+    auto h = playfield.height;
+    if (paddle.dest_y > h) paddle.dest_y = h - (paddle.dest_y - h);
     else if (paddle.dest_y < 0) paddle.dest_y = -paddle.dest_y;
 }
 
@@ -122,17 +128,10 @@ void move_paddle(paddle_type & paddle, float speed, float dt) {
     else if (paddle.dest_y > 500) paddle.dest_y = 500;
 
     auto distance = paddle.dest_y - m;
-    if (std::abs(distance) <= 5) return;
+    if (std::abs(distance) <= 1) return;
 
     auto sign = (paddle.dest_y > m) ? 1 : -1;
     paddle.shape.move(0, sign * speed * dt);
-}
-
-void move_paddle(paddle_type & d, float distance) {
-    auto y = mid_y(d) + distance;
-    if (y < 100) set_midpoint(d, 100);
-    else if (y > 500) set_midpoint(d, 500);
-    else d.shape.move(0, distance);
 }
 
 template <typename T, typename Action>
@@ -155,13 +154,12 @@ void collide(const ball_type & ball, T wall, Action action) {
 template <typename Drawable, typename Action>
 void score(const Drawable & ball, Action action) {
     auto r = to_rect(ball);
-    auto field = sf::IntRect(0, 0, W, H);
-    if (!r.intersects(field)) action();
+    if (!r.intersects(playfield)) action();
 }
 
 void update_trajectory(ball_type & ball, const paddle_type & paddle) {
     auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.shape.getSize().y / 2);
-    auto angle = d * pi / 3;
+    auto angle = d * pi / 3; // 60 degrees
     ball.d.x = std::cos(angle);
     ball.d.y = std::sin(angle);
 }
@@ -177,7 +175,7 @@ int main(int argc, char* argv[]) {
         auto clock = sf::Clock();
 
         // top bar
-        auto top = sf::RectangleShape{sf::Vector2f(W, 10)};
+        auto top = sf::RectangleShape{sf::Vector2f(W, bar_h)};
         auto c = sf::Color::White;
         c.a = 155;
         top.setFillColor(c);
@@ -185,10 +183,10 @@ int main(int argc, char* argv[]) {
 
         // bottom bar
         auto bottom = top;
-        bottom.setPosition(0, H - 10);
+        bottom.setPosition(0, H - bar_h);
 
         // left paddle
-        auto left = paddle_type{sf::Vector2f(10, 80)};
+        auto left = paddle_type{paddle_size};
         set_midpoint(left, 50, 300);
 
         // right paddle
@@ -196,9 +194,7 @@ int main(int argc, char* argv[]) {
         set_midpoint(right, W - 50, 500);
         
         // ball, direction, and sound
-        auto ball = ball_type {
-            sf::Vector2f(15, 15), 
-            sf::Vector2f(45 * 2 * pi / 360.f, 45 * 2 * pi / 360.f) }; // 45 degree angle;
+        auto ball = ball_type { sf::Vector2f(15, 15), sf::Vector2f(pi / 4.f, pi / 4.f) }; // 45 degree angle;
 
         auto sound_buff = sf::SoundBuffer();
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
