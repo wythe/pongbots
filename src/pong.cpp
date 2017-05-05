@@ -21,11 +21,11 @@ concept bool Drawable() {
 
 const float speed = 500.f; // pixels per second when moving paddles
 const double pi = std::acos(-1);
-const int W = 800;
-const int H = 600;
+const float W = 800.f;
+const float H = 600.f;
 const sf::Vector2f paddle_size(10, 80); 
-const int bar_h = 10; // bar and paddle width
-const sf::IntRect playfield(0, bar_h, W, H - 2 * bar_h);
+const float bar_h = 10.f; // bar and paddle width
+const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
 
 enum struct face {
     left, right, top, bottom
@@ -54,27 +54,25 @@ struct paddle_type {
     paddle_type(const paddle_type &) = default;
     paddle_type & operator=(const paddle_type &) = default;
     sf::RectangleShape shape;
-    int dest_y;
+    float dest_y;
 };
 
 class centerline : public sf::Drawable, public sf::Transformable {
     public:
      centerline(const sf::Color & c) {
         // fig. 5
-        int n = 5;
-        int bx = bar_h;
-        int h = playfield.height;
+        float n = 7.f;
+        float bx = bar_h;
+        float h = playfield.height;
 
-        int by = 2 * h / (3 * n - 1);
-        int d = by / 2;
+        float by = 2 * h / (3 * n - 1);
+        float d = by / 2;
 
 		va.resize(4 * n);
-        cout << "n = " << n << ", by = " << by << ", d = " << d << '\n';
         
-        auto yn = 0;
+        auto yn = 0.f;
         for (auto i = va.begin(); i != va.end(); i+=4) {
             auto v = &(*i);
-            cout << "yn = " << yn << '\n';
             v[0].position = sf::Vector2f(0, yn);
             v[0].color = c;
             v[1].position = sf::Vector2f(bx, yn);
@@ -103,32 +101,32 @@ void advance(ball_type & b, float dt) {
 }
 
 template <typename Drawable>
-sf::IntRect to_rect(Drawable & d) {
-    return sf::IntRect(d.shape.getPosition().x, d.shape.getPosition().y, d.shape.getSize().x, d.shape.getSize().y);
+sf::FloatRect to_rect(Drawable & d) {
+    return sf::FloatRect(d.shape.getPosition().x, d.shape.getPosition().y, d.shape.getSize().x, d.shape.getSize().y);
 }
 
 // walls are still RectangleShapes
-sf::IntRect to_rect(sf::RectangleShape & shape) {
-    return sf::IntRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
+sf::FloatRect to_rect(sf::RectangleShape & shape) {
+    return sf::FloatRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
 }
 
 template <typename Drawable>
-int mid_y(const Drawable & d) {
+float mid_y(const Drawable & d) {
     return d.shape.getPosition().y + d.shape.getSize().y / 2;
 }
 
 template <typename Drawable>
-int mid_x(const Drawable & d) {
+float mid_x(const Drawable & d) {
     return d.shape.getPosition().x + d.shape.getSize().x / 2;
 }
 
 template <typename Drawable>
-int set_midpoint(Drawable & d, int x, int y) {
+float set_midpoint(Drawable & d, float x, float y) {
     d.shape.setPosition(x - d.shape.getSize().x / 2, y - d.shape.getSize().y / 2);
 }
 
 template <typename Drawable>
-int set_midpoint(Drawable & d, int y) {
+float set_midpoint(Drawable & d, float y) {
     d.shape.setPosition(d.shape.getPosition().x, y - d.shape.getSize().y / 2);
 }
 
@@ -150,16 +148,16 @@ int rng(int min, int max) {
 }
 
 template <typename Drawable>
-int ai_update(const Drawable & ball, paddle_type & paddle, Drawable & target) {
+void ai_update(const Drawable & ball, paddle_type & paddle, Drawable & target) {
     auto tan_angle = ball.d.y / ball.d.x; // tan(theta) = opp / adj
     auto adj = mid_x(paddle) - mid_x(ball); // find the adjacent (distance from ball to paddle on x)
     auto opp = tan_angle * adj; // calculate the opposite (distance on y)
-    int d = mid_y(ball) + opp; // destination of ball on the paddle's y axis
+    auto d = mid_y(ball) + opp; // destination of ball on the paddle's y axis
 
     d -= bar_h; // remove the bar height
     int h = playfield.height;
     int n = d / h;
-    int dp = std::abs(d % h);
+    int dp = std::abs((int)d % h);
     dp += bar_h; // add it back in
 
     paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
@@ -272,8 +270,6 @@ int main(int argc, char* argv[]) {
     
         clock.restart();
         float dt;
-        float dt_count = 0;
-        int frames = 0;
 
         ai_update(ball, right, target);
 
@@ -332,8 +328,10 @@ int main(int argc, char* argv[]) {
             draw(rw, left);
             draw(rw, right);
             draw(rw, ball);
+#if 0
             draw(rw, target);
-			// rw.draw(triangle);
+			rw.draw(triangle);
+#endif
             rw.draw(cl);
             rw.display();
         }
