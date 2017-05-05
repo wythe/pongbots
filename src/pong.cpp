@@ -57,6 +57,47 @@ struct paddle_type {
     int dest_y;
 };
 
+class centerline : public sf::Drawable, public sf::Transformable {
+    public:
+     centerline(const sf::Color & c) {
+        // fig. 5
+        int n = 5;
+        int bx = bar_h;
+        int h = playfield.height;
+
+        int by = 2 * h / (3 * n - 1);
+        int d = by / 2;
+
+		va.resize(4 * n);
+        cout << "n = " << n << ", by = " << by << ", d = " << d << '\n';
+        
+        auto yn = 0;
+        for (auto i = va.begin(); i != va.end(); i+=4) {
+            auto v = &(*i);
+            cout << "yn = " << yn << '\n';
+            v[0].position = sf::Vector2f(0, yn);
+            v[0].color = c;
+            v[1].position = sf::Vector2f(bx, yn);
+            v[1].color = c;
+            v[2].position = sf::Vector2f(bx, yn + by);
+            v[2].color = c;
+            v[3].position = sf::Vector2f(0, yn + by);
+            v[3].color = c;
+            yn += by + d;
+        }
+    }
+
+    virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const {
+        states.transform *= getTransform();
+        states.texture = &t;
+        target.draw(va.data(), va.size(), sf::Quads, states);
+    }
+
+    private:
+    std::vector<sf::Vertex> va;
+    sf::Texture t;
+};
+
 void advance(ball_type & b, float dt) {
     b.move(b.d.x * b.s * dt, b.d.y * b.s * dt);
 }
@@ -110,33 +151,28 @@ int rng(int min, int max) {
 
 template <typename Drawable>
 int ai_update(const Drawable & ball, paddle_type & paddle, Drawable & target) {
-    // calc d
-    // find the angle of the ball
-    auto tan_angle = ball.d.y / ball.d.x;
-    auto angle = std::atan(tan_angle);
-    auto adj = mid_x(paddle) - mid_x(ball); // now find the adjacent (distance from ball to paddle)
-    auto opp = std::tan(angle) * adj; // calculate the opposite
+    auto tan_angle = ball.d.y / ball.d.x; // tan(theta) = opp / adj
+    auto adj = mid_x(paddle) - mid_x(ball); // find the adjacent (distance from ball to paddle on x)
+    auto opp = tan_angle * adj; // calculate the opposite (distance on y)
     int d = mid_y(ball) + opp; // destination of ball on the paddle's y axis
 
     d -= bar_h; // remove the bar height
     int h = playfield.height;
     int n = d / h;
     int dp = std::abs(d % h);
-    cout << "dp = " << dp << '\n';
-
     dp += bar_h; // add it back in
+
     paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
 
-    //paddle.dest_y += playfield.top;
     set_midpoint(target, mid_x(paddle), paddle.dest_y);
 
-    paddle.dest_y += rng(-paddle.shape.getSize().y / 3, paddle.shape.getSize().y / 3);
+    paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);  // a little variety
 }
 
 void move_paddle(paddle_type & paddle, float speed, float dt) {
     auto m = mid_y(paddle);
-    if (paddle.dest_y < 50) paddle.dest_y = 50;
-    else if (paddle.dest_y > 550) paddle.dest_y = 550;
+    if (paddle.dest_y < 100) paddle.dest_y = 100;
+    else if (paddle.dest_y > 500) paddle.dest_y = 500;
 
     auto distance = paddle.dest_y - m;
     if (std::abs(distance) <= 1) return;
@@ -164,13 +200,13 @@ void collide(const ball_type & ball, T wall, Action action) {
 
 template <typename Drawable, typename Action>
 void score(const Drawable & ball, Action action) {
-    auto r = to_rect(ball);
-    if (!r.intersects(playfield)) action();
+    auto x = mid_x(ball);
+    if (x < 0 || x > W) action();
 }
 
 void update_trajectory(ball_type & ball, const paddle_type & paddle) {
     auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.shape.getSize().y / 2);
-    auto angle = d * pi / 3; // 60 degrees
+    auto angle = d * pi / 3;  // 60 degrees
     ball.d.x = std::cos(angle);
     ball.d.y = std::sin(angle);
 }
@@ -196,6 +232,22 @@ int main(int argc, char* argv[]) {
         auto bottom = top;
         bottom.setPosition(0, H - bar_h);
 
+        centerline cl(c);
+        cl.setPosition(W / 2 - bar_h / 2, bar_h);
+        
+#if 0 // test triangle with vertex array
+		sf::VertexArray triangle(sf::Triangles, 3);
+
+		// define the position of the triangle's points
+		triangle[0].position = sf::Vector2f(10, 10);
+		triangle[1].position = sf::Vector2f(100, 10);
+		triangle[2].position = sf::Vector2f(100, 100);
+
+		// define the color of the triangle's points
+		triangle[0].color = c;
+		triangle[1].color = c;
+		triangle[2].color = c;
+#endif
         // left paddle
         auto left = paddle_type{paddle_size};
         set_midpoint(left, 50, 300);
@@ -247,12 +299,8 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            collide(ball, bottom, [&](auto) {
-                ball.d.y = -std::abs(ball.d.y);
-            });
-            collide(ball, top, [&](auto) {
-                ball.d.y = std::abs(ball.d.y);
-            });
+            collide(ball, bottom, [&](auto) { ball.d.y = -std::abs(ball.d.y); });
+            collide(ball, top, [&](auto) { ball.d.y = std::abs(ball.d.y); });
             collide(ball, left, [&](auto) {
                 update_trajectory(ball, left);
                 ball.d.x = std::abs(ball.d.x);
@@ -285,6 +333,8 @@ int main(int argc, char* argv[]) {
             draw(rw, right);
             draw(rw, ball);
             draw(rw, target);
+			// rw.draw(triangle);
+            rw.draw(cl);
             rw.display();
         }
     } catch (std::exception & e) {
