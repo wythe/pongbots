@@ -8,17 +8,6 @@
 
 using std::cout;
 
-// The Drawable concept
-// If concepts were supported in the compiler, this is what it would look something like this:
-#if 0 
-template <class T>
-concept bool Drawable() {
-    return requires(T a) {
-        a.shape -> sf::RectangleShape;
-    };
-}
-#endif
-
 const float speed = 500.f; // pixels per second when moving paddles
 const double pi = std::acos(-1);
 const float W = 800.f;
@@ -26,14 +15,6 @@ const float H = 600.f;
 const sf::Vector2f paddle_size(10, 80); 
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
-
-enum struct face {
-    left, right, top, bottom
-};
-
-enum struct side {
-    left, right
-};
 
 struct ball_type {
     ball_type(sf::Vector2f size, sf::Vector2f angle) : shape(size), d(angle) {}
@@ -49,8 +30,7 @@ struct ball_type {
 };
 
 struct paddle_type {
-    paddle_type(sf::Vector2f size) : shape(size) {
-        };
+    paddle_type(sf::Vector2f size) : shape(size) { };
     paddle_type(const paddle_type &) = default;
     paddle_type & operator=(const paddle_type &) = default;
     sf::RectangleShape shape;
@@ -85,10 +65,10 @@ class centerline : public sf::Drawable, public sf::Transformable {
         }
     }
 
-    virtual void draw(sf::RenderTarget& target, sf::RenderStates states) const {
+    virtual void draw(sf::RenderTarget& rt, sf::RenderStates states) const {
         states.transform *= getTransform();
         states.texture = &t;
-        target.draw(va.data(), va.size(), sf::Quads, states);
+        rt.draw(va.data(), va.size(), sf::Quads, states);
     }
 
     private:
@@ -148,7 +128,7 @@ int rng(int min, int max) {
 }
 
 template <typename Drawable>
-void ai_update(const Drawable & ball, paddle_type & paddle, Drawable & target) {
+void ai_update(const Drawable & ball, paddle_type & paddle) {
     auto tan_angle = ball.d.y / ball.d.x; // tan(theta) = opp / adj
     auto adj = mid_x(paddle) - mid_x(ball); // find the adjacent (distance from ball to paddle on x)
     auto opp = tan_angle * adj; // calculate the opposite (distance on y)
@@ -162,8 +142,6 @@ void ai_update(const Drawable & ball, paddle_type & paddle, Drawable & target) {
 
     paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
 
-    set_midpoint(target, mid_x(paddle), paddle.dest_y);
-
     paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);  // a little variety
 }
 
@@ -173,14 +151,14 @@ void move_paddle(paddle_type & paddle, float speed, float dt) {
     else if (paddle.dest_y > 500) paddle.dest_y = 500;
 
     auto distance = paddle.dest_y - m;
-    if (std::abs(distance) <= 1) return;
+    if (std::abs(distance) <= 2.f) return;
 
     auto sign = (paddle.dest_y > m) ? 1 : -1;
     paddle.shape.move(0, sign * speed * dt);
 }
 
 template <typename T, typename Action>
-void collide(const ball_type & ball, T wall, Action action) {
+void collide(ball_type & ball, T wall, Action action) {
     auto b = to_rect(ball);
     auto w = to_rect(wall);
     const bool topleft = w.contains(b.left, b.top);
@@ -190,10 +168,24 @@ void collide(const ball_type & ball, T wall, Action action) {
 
     if (!topleft && !topright && !botleft && !botright) return;
 
-    if ((topleft || botleft) && !topright && !botright) action(face::left);
-    else if ((topright || botright) && !topleft && !botleft) action(face::right);
-    else if ((topleft || topright) && !botleft && !botright) action(face::top);
-    else if ((botright || botleft) && !topleft && !topright) action(face::bottom);
+    if ((topleft || botleft) && !topright && !botright) {
+        ball.d.x = std::abs(ball.d.x);
+    }
+    else if ((topright || botright) && !topleft && !botleft) {
+        ball.d.x = -std::abs(ball.d.x);
+    }
+    else if ((topleft || topright) && !botleft && !botright) {
+        ball.d.y = std::abs(ball.d.y);
+    }
+    else if ((botright || botleft) && !topleft && !topright) {
+        ball.d.y = -std::abs(ball.d.y);
+    }
+    action();
+}
+
+template <typename T>
+void collide(ball_type & ball, T wall) {
+    collide(ball, wall, [&]{});
 }
 
 template <typename Drawable, typename Action>
@@ -204,8 +196,9 @@ void score(const Drawable & ball, Action action) {
 
 void update_trajectory(ball_type & ball, const paddle_type & paddle) {
     auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.shape.getSize().y / 2);
+    auto sign = ball.d.x < 0 ? -1 : 1;
     auto angle = d * pi / 3;  // 60 degrees
-    ball.d.x = std::cos(angle);
+    ball.d.x = std::cos(angle) * sign;
     ball.d.y = std::sin(angle);
 }
 
@@ -233,19 +226,6 @@ int main(int argc, char* argv[]) {
         centerline cl(c);
         cl.setPosition(W / 2 - bar_h / 2, bar_h);
         
-#if 0 // test triangle with vertex array
-		sf::VertexArray triangle(sf::Triangles, 3);
-
-		// define the position of the triangle's points
-		triangle[0].position = sf::Vector2f(10, 10);
-		triangle[1].position = sf::Vector2f(100, 10);
-		triangle[2].position = sf::Vector2f(100, 100);
-
-		// define the color of the triangle's points
-		triangle[0].color = c;
-		triangle[1].color = c;
-		triangle[2].color = c;
-#endif
         // left paddle
         auto left = paddle_type{paddle_size};
         set_midpoint(left, 50, 300);
@@ -256,8 +236,6 @@ int main(int argc, char* argv[]) {
         
         // ball, direction, and sound
         auto ball = ball_type { sf::Vector2f(15, 15), sf::Vector2f(pi / 4.f, pi / 4.f) }; // 45 degree angle;
-
-        auto target = ball;
 
         auto sound_buff = sf::SoundBuffer();
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
@@ -271,7 +249,7 @@ int main(int argc, char* argv[]) {
         clock.restart();
         float dt;
 
-        ai_update(ball, right, target);
+        ai_update(ball, right);
 
         // the loop
         while (rw.isOpen()) {
@@ -295,17 +273,15 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            collide(ball, bottom, [&](auto) { ball.d.y = -std::abs(ball.d.y); });
-            collide(ball, top, [&](auto) { ball.d.y = std::abs(ball.d.y); });
-            collide(ball, left, [&](auto) {
+            collide(ball, bottom);
+            collide(ball, top);
+            collide(ball, left, [&]{
                 update_trajectory(ball, left);
-                ball.d.x = std::abs(ball.d.x);
-                ai_update(ball, right, target);
+                ai_update(ball, right);
             });
-            collide(ball, right, [&](auto) {
+            collide(ball, right, [&]{
                 update_trajectory(ball, right);
-                ball.d.x = -std::abs(ball.d.x);
-                ai_update(ball, left, target);
+                ai_update(ball, left);
             });
             advance(ball, dt);
             move_paddle(right, speed, dt);
@@ -315,10 +291,10 @@ int main(int argc, char* argv[]) {
                 set_midpoint(ball, 400, rng(100, 500));
                 if (ball.d.x > 0) {
                     std::cout << "score left!\n"; 
-                    ai_update(ball, right, target);
+                    ai_update(ball, right);
                 } else {
                     std::cout << "score right!\n"; 
-                    ai_update(ball, left, target);
+                    ai_update(ball, left);
                 }
             });
 
@@ -328,10 +304,6 @@ int main(int argc, char* argv[]) {
             draw(rw, left);
             draw(rw, right);
             draw(rw, ball);
-#if 0
-            draw(rw, target);
-			rw.draw(triangle);
-#endif
             rw.draw(cl);
             rw.display();
         }
