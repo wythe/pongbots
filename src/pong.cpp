@@ -15,7 +15,7 @@ const sf::Vector2f paddle_size(10, 80);
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
 
-#define NO_SHAPE
+//#define NO_SHAPE
 struct pong_rect : public sf::RectangleShape {
     pong_rect(sf::Vector2f size) : sf::RectangleShape(size)
 #ifndef NO_SHAPE
@@ -49,6 +49,12 @@ sf::FloatRect to_rect(pong_rect & shape) {
     return sf::FloatRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
 }
 
+// TODO: idea: add a lambda parameter and then use this for score() and move_paddle()
+void advance(pong_rect & b, float dt) {
+    b.move(b.direction.x * b.speed * dt, b.direction.y * b.speed * dt);
+}
+
+
 // remove these later
 float mid_y(const pong_rect & o) {
     return midpoint(o).y;
@@ -63,11 +69,11 @@ void draw(Window & rw, const pong_rect & o) {
     rw.draw(o);
 }
 
-#if 0
+#if 1
 using ball_type = pong_rect;
 #else
 struct ball_type {
-    ball_type(sf::Vector2f size, sf::Vector2f angle) : shape(size), d(angle) {}
+    ball_type(sf::Vector2f size) : shape(size){}
     ball_type(const ball_type &) = default;
     ball_type & operator=(const ball_type &) = default;
 
@@ -75,9 +81,12 @@ struct ball_type {
     void move(T x, T y) { shape.move(x, y); }
 
     sf::RectangleShape shape;
-    sf::Vector2f d; // direction
+    sf::Vector2f direction = sf::Vector2f{pi / 4.f, pi / 4.f};
     float speed = 500.f;
 };
+void advance(ball_type & b, float dt) {
+    b.move(b.direction.x * b.speed * dt, b.direction.y * b.speed * dt);
+}
 #endif
 
 #if 1
@@ -132,10 +141,6 @@ class centerline : public sf::Drawable, public sf::Transformable {
     sf::Texture t;
 };
 
-void advance(ball_type & b, float dt) {
-    b.move(b.d.x * b.speed * dt, b.d.y * b.speed * dt);
-}
-
 template <typename Drawable>
 sf::FloatRect to_rect(Drawable & d) {
     return sf::FloatRect(d.shape.getPosition().x, d.shape.getPosition().y, d.shape.getSize().x, d.shape.getSize().y);
@@ -185,7 +190,7 @@ int rng(int min, int max) {
 
 template <typename Drawable>
 void ai_update(const Drawable & ball, paddle_type & paddle) {
-    auto tan_angle = ball.d.y / ball.d.x; // tan(theta) = opp / adj
+    auto tan_angle = ball.direction.y / ball.direction.x; // tan(theta) = opp / adj
     auto adj = mid_x(paddle) - mid_x(ball); // find the adjacent (distance from ball to paddle on x)
     auto opp = tan_angle * adj; // calculate the opposite (distance on y)
     auto d = mid_y(ball) + opp; // destination of ball on the paddle's y axis
@@ -226,16 +231,16 @@ void collide(ball_type & ball, T wall, Action action) {
     if (!topleft && !topright && !botleft && !botright) return;
 
     if ((topleft || botleft) && !topright && !botright) {
-        ball.d.x = std::abs(ball.d.x);
+        ball.direction.x = std::abs(ball.direction.x);
     }
     else if ((topright || botright) && !topleft && !botleft) {
-        ball.d.x = -std::abs(ball.d.x);
+        ball.direction.x = -std::abs(ball.direction.x);
     }
     else if ((topleft || topright) && !botleft && !botright) {
-        ball.d.y = std::abs(ball.d.y);
+        ball.direction.y = std::abs(ball.direction.y);
     }
     else if ((botright || botleft) && !topleft && !topright) {
-        ball.d.y = -std::abs(ball.d.y);
+        ball.direction.y = -std::abs(ball.direction.y);
     }
     action();
 }
@@ -253,10 +258,10 @@ void score(const Drawable & ball, Action action) {
 
 void update_trajectory(ball_type & ball, const paddle_type & paddle) {
     auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.getSize().y / 2);
-    auto sign = ball.d.x < 0 ? -1 : 1;
+    auto sign = ball.direction.x < 0 ? -1 : 1;
     auto angle = d * pi / 3;  // 60 degrees
-    ball.d.x = std::cos(angle) * sign;
-    ball.d.y = std::sin(angle);
+    ball.direction.x = std::cos(angle) * sign;
+    ball.direction.y = std::sin(angle);
 }
 
 int main(int argc, char* argv[]) {
@@ -292,7 +297,7 @@ int main(int argc, char* argv[]) {
         set_midpoint(right, W - 50, 500);
         
         // ball, direction, and sound
-        auto ball = ball_type { sf::Vector2f(15, 15), sf::Vector2f(pi / 4.f, pi / 4.f) }; // 45 degree angle;
+        auto ball = ball_type { sf::Vector2f(15, 15) }; 
 
         auto sound_buff = sf::SoundBuffer();
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
@@ -346,7 +351,7 @@ int main(int argc, char* argv[]) {
 
             score(ball, [&] { 
                 set_midpoint(ball, 400, rng(100, 500));
-                if (ball.d.x > 0) {
+                if (ball.direction.x > 0) {
                     std::cout << "score left!\n"; 
                     ai_update(ball, right);
                 } else {
