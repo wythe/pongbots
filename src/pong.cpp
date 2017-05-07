@@ -8,13 +8,40 @@
 
 using std::cout;
 
-const double pi = std::acos(-1);
+const float pi = std::acos(-1);
 const float W = 800.f;
 const float H = 600.f;
 const sf::Vector2f paddle_size(10, 80); 
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
 
+struct pong_object : public sf::RectangleShape {
+    pong_object(sf::Vector2f size) : sf::RectangleShape(size), shape(*this) {}
+    pong_object(const pong_object &) = default;
+    pong_object & operator=(const pong_object &) = default;
+    sf::Vector2f direction = sf::Vector2f{pi / 4.f, pi / 4.f};
+    float speed = 500.f;
+    float dest_y;
+
+    RectangleShape & shape;
+};
+
+sf::Vector2f midpoint(const pong_object & o) {
+    auto p = o.getPosition();
+    auto s = o.getSize();
+    return sf::Vector2f{p.x + s.x/2, p.y + s.y/2};
+}
+
+void set_midpoint(pong_object & o, float x, float y) {
+    auto p = o.getPosition();
+    auto s = o.getSize();
+    o.setPosition(x - s.x / 2, y - s.y / 2);
+}
+
+
+#if 0
+using ball_type = pong_object;
+#else
 struct ball_type {
     ball_type(sf::Vector2f size, sf::Vector2f angle) : shape(size), d(angle) {}
     ball_type(const ball_type &) = default;
@@ -27,7 +54,11 @@ struct ball_type {
     sf::Vector2f d; // direction
     float speed = 500.f;
 };
+#endif
 
+#if 1
+using paddle_type = pong_object;
+#else
 struct paddle_type {
     paddle_type(sf::Vector2f size) : shape(size) { };
     paddle_type(const paddle_type &) = default;
@@ -36,6 +67,7 @@ struct paddle_type {
     float dest_y;
     float speed = 500.f;
 };
+#endif
 
 class centerline : public sf::Drawable, public sf::Transformable {
     public:
@@ -231,7 +263,7 @@ int main(int argc, char* argv[]) {
         set_midpoint(left, 50, 300);
 
         // right paddle
-        auto right = left;
+        auto right = paddle_type{paddle_size};
         set_midpoint(right, W - 50, 500);
         
         // ball, direction, and sound
