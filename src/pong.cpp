@@ -8,7 +8,6 @@
 
 using std::cout;
 
-const float speed = 500.f; // pixels per second when moving paddles
 const double pi = std::acos(-1);
 const float W = 800.f;
 const float H = 600.f;
@@ -26,7 +25,7 @@ struct ball_type {
 
     sf::RectangleShape shape;
     sf::Vector2f d; // direction
-    float s = 500.f; // speed
+    float speed = 500.f;
 };
 
 struct paddle_type {
@@ -35,6 +34,7 @@ struct paddle_type {
     paddle_type & operator=(const paddle_type &) = default;
     sf::RectangleShape shape;
     float dest_y;
+    float speed = 500.f;
 };
 
 class centerline : public sf::Drawable, public sf::Transformable {
@@ -77,7 +77,7 @@ class centerline : public sf::Drawable, public sf::Transformable {
 };
 
 void advance(ball_type & b, float dt) {
-    b.move(b.d.x * b.s * dt, b.d.y * b.s * dt);
+    b.move(b.d.x * b.speed * dt, b.d.y * b.speed * dt);
 }
 
 template <typename Drawable>
@@ -145,7 +145,7 @@ void ai_update(const Drawable & ball, paddle_type & paddle) {
     paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);  // a little variety
 }
 
-void move_paddle(paddle_type & paddle, float speed, float dt) {
+void move_paddle(paddle_type & paddle, float dt) {
     auto m = mid_y(paddle);
     if (paddle.dest_y < 100) paddle.dest_y = 100;
     else if (paddle.dest_y > 500) paddle.dest_y = 500;
@@ -154,7 +154,7 @@ void move_paddle(paddle_type & paddle, float speed, float dt) {
     if (std::abs(distance) <= 2.f) return;
 
     auto sign = (paddle.dest_y > m) ? 1 : -1;
-    paddle.shape.move(0, sign * speed * dt);
+    paddle.shape.move(0, sign * paddle.speed * dt);
 }
 
 template <typename T, typename Action>
@@ -284,8 +284,8 @@ int main(int argc, char* argv[]) {
                 ai_update(ball, left);
             });
             advance(ball, dt);
-            move_paddle(right, speed, dt);
-            move_paddle(left, speed, dt);
+            move_paddle(right, dt);
+            move_paddle(left, dt);
 
             score(ball, [&] { 
                 set_midpoint(ball, 400, rng(100, 500));
