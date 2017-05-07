@@ -15,32 +15,56 @@ const sf::Vector2f paddle_size(10, 80);
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
 
-struct pong_object : public sf::RectangleShape {
-    pong_object(sf::Vector2f size) : sf::RectangleShape(size), shape(*this) {}
-    pong_object(const pong_object &) = default;
-    pong_object & operator=(const pong_object &) = default;
+#define NO_SHAPE
+struct pong_rect : public sf::RectangleShape {
+    pong_rect(sf::Vector2f size) : sf::RectangleShape(size)
+#ifndef NO_SHAPE
+    , shape(*this) 
+#endif
+    {}
+    pong_rect(const pong_rect &) = default;
+    pong_rect & operator=(const pong_rect &) = default;
     sf::Vector2f direction = sf::Vector2f{pi / 4.f, pi / 4.f};
     float speed = 500.f;
     float dest_y;
 
+#ifndef NO_SHAPE
     RectangleShape & shape;
+#endif
 };
 
-sf::Vector2f midpoint(const pong_object & o) {
+sf::Vector2f midpoint(const pong_rect & o) {
     auto p = o.getPosition();
     auto s = o.getSize();
     return sf::Vector2f{p.x + s.x/2, p.y + s.y/2};
 }
 
-void set_midpoint(pong_object & o, float x, float y) {
+void set_midpoint(pong_rect & o, float x, float y) {
     auto p = o.getPosition();
     auto s = o.getSize();
     o.setPosition(x - s.x / 2, y - s.y / 2);
 }
 
+sf::FloatRect to_rect(pong_rect & shape) {
+    return sf::FloatRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
+}
+
+// remove these later
+float mid_y(const pong_rect & o) {
+    return midpoint(o).y;
+}
+
+float mid_x(const pong_rect & o) {
+    return midpoint(o).x;
+}
+
+template <typename Window>
+void draw(Window & rw, const pong_rect & o) {
+    rw.draw(o);
+}
 
 #if 0
-using ball_type = pong_object;
+using ball_type = pong_rect;
 #else
 struct ball_type {
     ball_type(sf::Vector2f size, sf::Vector2f angle) : shape(size), d(angle) {}
@@ -57,7 +81,7 @@ struct ball_type {
 #endif
 
 #if 1
-using paddle_type = pong_object;
+using paddle_type = pong_rect;
 #else
 struct paddle_type {
     paddle_type(sf::Vector2f size) : shape(size) { };
@@ -143,7 +167,7 @@ float set_midpoint(Drawable & d, float y) {
 }
 
 template <typename Window, typename Drawable>
-void draw(Window & rw, Drawable & d) {
+void draw(Window & rw, const Drawable & d) {
     rw.draw(d.shape);
 }
 
@@ -174,7 +198,8 @@ void ai_update(const Drawable & ball, paddle_type & paddle) {
 
     paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
 
-    paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);  // a little variety
+    // paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);  // a little variety
+    paddle.dest_y += rng(-paddle.getSize().y / 2, paddle.getSize().y / 2);  // a little variety
 }
 
 void move_paddle(paddle_type & paddle, float dt) {
@@ -186,7 +211,7 @@ void move_paddle(paddle_type & paddle, float dt) {
     if (std::abs(distance) <= 2.f) return;
 
     auto sign = (paddle.dest_y > m) ? 1 : -1;
-    paddle.shape.move(0, sign * paddle.speed * dt);
+    paddle.move(0, sign * paddle.speed * dt);
 }
 
 template <typename T, typename Action>
@@ -227,7 +252,7 @@ void score(const Drawable & ball, Action action) {
 }
 
 void update_trajectory(ball_type & ball, const paddle_type & paddle) {
-    auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.shape.getSize().y / 2);
+    auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.getSize().y / 2);
     auto sign = ball.d.x < 0 ? -1 : 1;
     auto angle = d * pi / 3;  // 60 degrees
     ball.d.x = std::cos(angle) * sign;
