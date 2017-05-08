@@ -15,23 +15,15 @@ const sf::Vector2f paddle_size(10, 80);
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
 
-//#define NO_SHAPE
 struct pong_rect : public sf::RectangleShape {
-    pong_rect(sf::Vector2f size) : sf::RectangleShape(size)
-#ifndef NO_SHAPE
-    , shape(*this) 
-#endif
-    {}
-    pong_rect(const pong_rect &) = default;
-    pong_rect & operator=(const pong_rect &) = default;
-    sf::Vector2f direction = sf::Vector2f{pi / 4.f, pi / 4.f};
+    pong_rect(sf::Vector2f size) : sf::RectangleShape(size) {}
+    sf::Vector2f direction; // a unit vector
     float speed = 500.f;
     float dest_y;
-
-#ifndef NO_SHAPE
-    RectangleShape & shape;
-#endif
 };
+
+using ball_type = pong_rect;
+using paddle_type = pong_rect;
 
 sf::Vector2f midpoint(const pong_rect & o) {
     auto p = o.getPosition();
@@ -45,71 +37,21 @@ void set_midpoint(pong_rect & o, float x, float y) {
     o.setPosition(x - s.x / 2, y - s.y / 2);
 }
 
-sf::FloatRect to_rect(pong_rect & shape) {
+sf::FloatRect to_rect(const sf::RectangleShape & shape) {
     return sf::FloatRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
 }
 
-// TODO: idea: add a lambda parameter and then use this for score() and move_paddle()
 void advance(pong_rect & b, float dt) {
     b.move(b.direction.x * b.speed * dt, b.direction.y * b.speed * dt);
 }
 
-
-// remove these later
-float mid_y(const pong_rect & o) {
-    return midpoint(o).y;
-}
-
-float mid_x(const pong_rect & o) {
-    return midpoint(o).x;
-}
-
-template <typename Window>
-void draw(Window & rw, const pong_rect & o) {
-    rw.draw(o);
-}
-
-#if 1
-using ball_type = pong_rect;
-#else
-struct ball_type {
-    ball_type(sf::Vector2f size) : shape(size){}
-    ball_type(const ball_type &) = default;
-    ball_type & operator=(const ball_type &) = default;
-
-    template <typename T>
-    void move(T x, T y) { shape.move(x, y); }
-
-    sf::RectangleShape shape;
-    sf::Vector2f direction = sf::Vector2f{pi / 4.f, pi / 4.f};
-    float speed = 500.f;
-};
-void advance(ball_type & b, float dt) {
-    b.move(b.direction.x * b.speed * dt, b.direction.y * b.speed * dt);
-}
-#endif
-
-#if 1
-using paddle_type = pong_rect;
-#else
-struct paddle_type {
-    paddle_type(sf::Vector2f size) : shape(size) { };
-    paddle_type(const paddle_type &) = default;
-    paddle_type & operator=(const paddle_type &) = default;
-    sf::RectangleShape shape;
-    float dest_y;
-    float speed = 500.f;
-};
-#endif
-
 class centerline : public sf::Drawable, public sf::Transformable {
     public:
      centerline(const sf::Color & c) {
-        // fig. 5
+        // see fig. 5
         float n = 7.f;
         float bx = bar_h;
         float h = playfield.height;
-
         float by = 2 * h / (3 * n - 1);
         float d = by / 2;
 
@@ -141,46 +83,6 @@ class centerline : public sf::Drawable, public sf::Transformable {
     sf::Texture t;
 };
 
-template <typename Drawable>
-sf::FloatRect to_rect(Drawable & d) {
-    return sf::FloatRect(d.shape.getPosition().x, d.shape.getPosition().y, d.shape.getSize().x, d.shape.getSize().y);
-}
-
-// walls are still RectangleShapes
-sf::FloatRect to_rect(sf::RectangleShape & shape) {
-    return sf::FloatRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
-}
-
-template <typename Drawable>
-float mid_y(const Drawable & d) {
-    return d.shape.getPosition().y + d.shape.getSize().y / 2;
-}
-
-template <typename Drawable>
-float mid_x(const Drawable & d) {
-    return d.shape.getPosition().x + d.shape.getSize().x / 2;
-}
-
-template <typename Drawable>
-float set_midpoint(Drawable & d, float x, float y) {
-    d.shape.setPosition(x - d.shape.getSize().x / 2, y - d.shape.getSize().y / 2);
-}
-
-template <typename Drawable>
-float set_midpoint(Drawable & d, float y) {
-    d.shape.setPosition(d.shape.getPosition().x, y - d.shape.getSize().y / 2);
-}
-
-template <typename Window, typename Drawable>
-void draw(Window & rw, const Drawable & d) {
-    rw.draw(d.shape);
-}
-
-template <typename Window>
-void draw(Window & rw, sf::RectangleShape & r) {
-    rw.draw(r);
-}
-
 int rng(int min, int max) {
     static std::random_device rd;
     static std::mt19937 gen(rd());
@@ -191,9 +93,9 @@ int rng(int min, int max) {
 template <typename Drawable>
 void ai_update(const Drawable & ball, paddle_type & paddle) {
     auto tan_angle = ball.direction.y / ball.direction.x; // tan(theta) = opp / adj
-    auto adj = mid_x(paddle) - mid_x(ball); // find the adjacent (distance from ball to paddle on x)
+    auto adj = midpoint(paddle).x - midpoint(ball).x; // find the adjacent (distance from ball to paddle on x)
     auto opp = tan_angle * adj; // calculate the opposite (distance on y)
-    auto d = mid_y(ball) + opp; // destination of ball on the paddle's y axis
+    auto d = midpoint(ball).y + opp; // destination of ball on the paddle's y axis
 
     d -= bar_h; // remove the bar height
     int h = playfield.height;
@@ -203,12 +105,13 @@ void ai_update(const Drawable & ball, paddle_type & paddle) {
 
     paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
 
-    // paddle.dest_y += rng(-paddle.shape.getSize().y / 2, paddle.shape.getSize().y / 2);  // a little variety
     paddle.dest_y += rng(-paddle.getSize().y / 2, paddle.getSize().y / 2);  // a little variety
+
+    paddle.direction.y = paddle.dest_y > midpoint(paddle).x ? 1 : -1;
 }
 
 void move_paddle(paddle_type & paddle, float dt) {
-    auto m = mid_y(paddle);
+    auto m = midpoint(paddle).y;
     if (paddle.dest_y < 100) paddle.dest_y = 100;
     else if (paddle.dest_y > 500) paddle.dest_y = 500;
 
@@ -220,7 +123,7 @@ void move_paddle(paddle_type & paddle, float dt) {
 }
 
 template <typename T, typename Action>
-void collide(ball_type & ball, T wall, Action action) {
+void collide(pong_rect & ball, const T & wall, Action action) {
     auto b = to_rect(ball);
     auto w = to_rect(wall);
     const bool topleft = w.contains(b.left, b.top);
@@ -252,12 +155,12 @@ void collide(ball_type & ball, T wall) {
 
 template <typename Drawable, typename Action>
 void score(const Drawable & ball, Action action) {
-    auto x = mid_x(ball);
+    auto x = midpoint(ball).x;
     if (x < 0 || x > W) action();
 }
 
 void update_trajectory(ball_type & ball, const paddle_type & paddle) {
-    auto d = (mid_y(ball) - mid_y(paddle)) / (paddle.getSize().y / 2);
+    auto d = (midpoint(ball).y - midpoint(paddle).y) / (paddle.getSize().y / 2);
     auto sign = ball.direction.x < 0 ? -1 : 1;
     auto angle = d * pi / 3;  // 60 degrees
     ball.direction.x = std::cos(angle) * sign;
@@ -267,44 +170,37 @@ void update_trajectory(ball_type & ball, const paddle_type & paddle) {
 int main(int argc, char* argv[]) {
 
     try {
-        // main window
         sf::RenderWindow rw{sf::VideoMode(W, H), "pong"};
         rw.setFramerateLimit(120);
 
-        // clock for determining time between frame displays
         auto clock = sf::Clock();
 
-        // top bar
         auto top = sf::RectangleShape{sf::Vector2f(W, bar_h)};
         auto c = sf::Color::White;
         c.a = 155;
         top.setFillColor(c);
         top.setPosition(0, 0);
 
-        // bottom bar
         auto bottom = top;
         bottom.setPosition(0, H - bar_h);
 
         centerline cl(c);
         cl.setPosition(W / 2 - bar_h / 2, bar_h);
         
-        // left paddle
         auto left = paddle_type{paddle_size};
         set_midpoint(left, 50, 300);
 
-        // right paddle
-        auto right = paddle_type{paddle_size};
+        auto right = left;
         set_midpoint(right, W - 50, 500);
         
-        // ball, direction, and sound
         auto ball = ball_type { sf::Vector2f(15, 15) }; 
+        ball.direction = sf::Vector2f{pi / 4.f, pi / 4.f};
 
         auto sound_buff = sf::SoundBuffer();
         if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
         sf::Sound sound(sound_buff);
         set_midpoint(ball, 400, 20);
 
-        // font 
         auto font = sf::Font();
         if (!font.loadFromFile("assets/FreeMono.ttf")) throw std::runtime_error("cannot open font");
     
@@ -313,7 +209,6 @@ int main(int argc, char* argv[]) {
 
         ai_update(ball, right);
 
-        // the loop
         while (rw.isOpen()) {
             dt = clock.restart().asSeconds();
 
@@ -361,11 +256,11 @@ int main(int argc, char* argv[]) {
             });
 
             rw.clear();
-            draw(rw, top);
-            draw(rw, bottom);
-            draw(rw, left);
-            draw(rw, right);
-            draw(rw, ball);
+            rw.draw(top);
+            rw.draw(bottom);
+            rw.draw(left);
+            rw.draw(right);
+            rw.draw(ball);
             rw.draw(cl);
             rw.display();
         }
