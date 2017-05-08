@@ -45,8 +45,27 @@ void advance(pong_rect & b, float dt) {
     b.move(b.direction.x * b.speed * dt, b.direction.y * b.speed * dt);
 }
 
-class centerline : public sf::Drawable, public sf::Transformable {
-    public:
+template <typename Action>
+void advance(pong_rect & rect, float dt, Action action) {
+    advance(rect, dt);
+    action(rect);
+}
+
+void check_paddle(paddle_type & paddle) {
+    if (std::abs(paddle.direction.y) < .1f) return;
+    if (paddle.dest_y < 100) {
+        paddle.dest_y = 100;
+    }
+    else if (paddle.dest_y > 500) {
+        paddle.dest_y = 500;
+    }
+    auto distance = paddle.dest_y - midpoint(paddle).y;
+    if (std::abs(distance) <= 5.f) {
+        paddle.direction.y = 0;
+    }
+}
+
+struct centerline : public sf::Drawable, public sf::Transformable {
      centerline(const sf::Color & c) {
         // see fig. 5
         float n = 7.f;
@@ -55,32 +74,22 @@ class centerline : public sf::Drawable, public sf::Transformable {
         float by = 2 * h / (3 * n - 1);
         float d = by / 2;
 
-		va.resize(4 * n);
-        
         auto yn = 0.f;
-        for (auto i = va.begin(); i != va.end(); i+=4) {
-            auto v = &(*i);
-            v[0].position = sf::Vector2f(0, yn);
-            v[0].color = c;
-            v[1].position = sf::Vector2f(bx, yn);
-            v[1].color = c;
-            v[2].position = sf::Vector2f(bx, yn + by);
-            v[2].color = c;
-            v[3].position = sf::Vector2f(0, yn + by);
-            v[3].color = c;
+        for (auto i = 0; i < n; ++i) {
+            va.emplace_back(sf::Vector2f(0, yn), c);
+            va.emplace_back(sf::Vector2f(bx, yn), c);
+            va.emplace_back(sf::Vector2f(bx, yn + by), c);
+            va.emplace_back(sf::Vector2f(0, yn + by), c);
             yn += by + d;
         }
     }
 
     virtual void draw(sf::RenderTarget& rt, sf::RenderStates states) const {
         states.transform *= getTransform();
-        states.texture = &t;
         rt.draw(va.data(), va.size(), sf::Quads, states);
     }
 
-    private:
     std::vector<sf::Vertex> va;
-    sf::Texture t;
 };
 
 int rng(int min, int max) {
@@ -106,20 +115,7 @@ void ai_update(const Drawable & ball, paddle_type & paddle) {
     paddle.dest_y = (n % 2 == 0) ? dp : H - dp;
 
     paddle.dest_y += rng(-paddle.getSize().y / 2, paddle.getSize().y / 2);  // a little variety
-
-    paddle.direction.y = paddle.dest_y > midpoint(paddle).x ? 1 : -1;
-}
-
-void move_paddle(paddle_type & paddle, float dt) {
-    auto m = midpoint(paddle).y;
-    if (paddle.dest_y < 100) paddle.dest_y = 100;
-    else if (paddle.dest_y > 500) paddle.dest_y = 500;
-
-    auto distance = paddle.dest_y - m;
-    if (std::abs(distance) <= 2.f) return;
-
-    auto sign = (paddle.dest_y > m) ? 1 : -1;
-    paddle.move(0, sign * paddle.speed * dt);
+    paddle.direction.y = paddle.dest_y > midpoint(paddle).y ? 1 : -1;
 }
 
 template <typename T, typename Action>
@@ -240,9 +236,10 @@ int main(int argc, char* argv[]) {
                 update_trajectory(ball, right);
                 ai_update(ball, left);
             });
+
             advance(ball, dt);
-            move_paddle(right, dt);
-            move_paddle(left, dt);
+            advance(right, dt, check_paddle);
+            advance(left, dt, check_paddle);
 
             score(ball, [&] { 
                 set_midpoint(ball, 400, rng(100, 500));
