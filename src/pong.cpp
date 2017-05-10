@@ -6,12 +6,9 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 
-using std::cout;
-
 const float pi = std::acos(-1);
 const float W = 800.f;
 const float H = 600.f;
-const sf::Vector2f paddle_size(10, 80); 
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
 
@@ -21,9 +18,6 @@ struct pong_rect : public sf::RectangleShape {
     float speed = 500.f;
     float dest_y;
 };
-
-using ball_type = pong_rect;
-using paddle_type = pong_rect;
 
 sf::Vector2f midpoint(const pong_rect & o) {
     auto p = o.getPosition();
@@ -51,24 +45,9 @@ void advance(pong_rect & rect, float dt, Action action) {
     action(rect);
 }
 
-void check_paddle(paddle_type & paddle) {
-    if (std::abs(paddle.direction.y) < .1f) return;
-    if (paddle.dest_y < 100) {
-        paddle.dest_y = 100;
-    }
-    else if (paddle.dest_y > 500) {
-        paddle.dest_y = 500;
-    }
-    auto distance = paddle.dest_y - midpoint(paddle).y;
-    if (std::abs(distance) <= 5.f) {
-        paddle.direction.y = 0;
-    }
-}
-
 struct centerline : public sf::Drawable, public sf::Transformable {
-     centerline(const sf::Color & c) {
+     centerline(float n, const sf::Color & c) {
         // see fig. 5
-        float n = 7.f;
         float bx = bar_h;
         float h = playfield.height;
         float by = 2 * h / (3 * n - 1);
@@ -99,8 +78,7 @@ int rng(int min, int max) {
     return dis(gen);
 }
 
-template <typename Drawable>
-void ai_update(const Drawable & ball, paddle_type & paddle) {
+void ai_update(const pong_rect & ball, pong_rect & paddle) {
     auto tan_angle = ball.direction.y / ball.direction.x; // tan(theta) = opp / adj
     auto adj = midpoint(paddle).x - midpoint(ball).x; // find the adjacent (distance from ball to paddle on x)
     auto opp = tan_angle * adj; // calculate the opposite (distance on y)
@@ -122,40 +100,34 @@ template <typename T, typename Action>
 void collide(pong_rect & ball, const T & wall, Action action) {
     auto b = to_rect(ball);
     auto w = to_rect(wall);
+    if (!b.intersects(w)) return;
     const bool topleft = w.contains(b.left, b.top);
     const bool topright = w.contains(b.left + b.width, b.top);
     const bool botleft = w.contains(b.left, b.top + b.height);
     const bool botright = w.contains(b.left + b.width, b.top + b.height);
 
-    if (!topleft && !topright && !botleft && !botright) return;
-
-    if ((topleft || botleft) && !topright && !botright) {
-        ball.direction.x = std::abs(ball.direction.x);
-    }
-    else if ((topright || botright) && !topleft && !botleft) {
-        ball.direction.x = -std::abs(ball.direction.x);
-    }
-    else if ((topleft || topright) && !botleft && !botright) {
-        ball.direction.y = std::abs(ball.direction.y);
-    }
-    else if ((botright || botleft) && !topleft && !topright) {
-        ball.direction.y = -std::abs(ball.direction.y);
-    }
+    if ((topleft || botleft) && !topright && !botright) ball.direction.x = std::abs(ball.direction.x);
+    else if ((topright || botright) && !topleft && !botleft) ball.direction.x = -std::abs(ball.direction.x);
+    else if ((topleft || topright) && !botleft && !botright) ball.direction.y = std::abs(ball.direction.y);
+    else if ((botright || botleft) && !topleft && !topright) ball.direction.y = -std::abs(ball.direction.y);
     action();
 }
 
 template <typename T>
-void collide(ball_type & ball, T wall) {
+void collide(pong_rect & ball, T wall) {
     collide(ball, wall, [&]{});
 }
 
-template <typename Drawable, typename Action>
-void score(const Drawable & ball, Action action) {
-    auto x = midpoint(ball).x;
-    if (x < 0 || x > W) action();
+void check_paddle(pong_rect & paddle) {
+    auto m = midpoint(paddle);
+    if (m.y < 50) set_midpoint(paddle, m.x, 50);
+    if (m.y > 550) set_midpoint(paddle, m.x, 550);
+    if (m.y > paddle.dest_y && paddle.direction.y > 0) paddle.direction.y = 0;
+    if (m.y < paddle.dest_y && paddle.direction.y < 0) paddle.direction.y = 0;
+    // if (std::abs(paddle.dest_y - midpoint(paddle).y) <= 5.f) paddle.direction.y = 0;
 }
 
-void update_trajectory(ball_type & ball, const paddle_type & paddle) {
+void update_trajectory(pong_rect & ball, const pong_rect & paddle) {
     auto d = (midpoint(ball).y - midpoint(paddle).y) / (paddle.getSize().y / 2);
     auto sign = ball.direction.x < 0 ? -1 : 1;
     auto angle = d * pi / 3;  // 60 degrees
@@ -180,16 +152,16 @@ int main(int argc, char* argv[]) {
         auto bottom = top;
         bottom.setPosition(0, H - bar_h);
 
-        centerline cl(c);
+        centerline cl(12, c);
         cl.setPosition(W / 2 - bar_h / 2, bar_h);
         
-        auto left = paddle_type{paddle_size};
+        auto left = pong_rect{sf::Vector2f{10, 80}};
         set_midpoint(left, 50, 300);
 
         auto right = left;
         set_midpoint(right, W - 50, 500);
         
-        auto ball = ball_type { sf::Vector2f(15, 15) }; 
+        auto ball = pong_rect { sf::Vector2f(15, 15) }; 
         ball.direction = sf::Vector2f{pi / 4.f, pi / 4.f};
 
         auto sound_buff = sf::SoundBuffer();
@@ -233,23 +205,28 @@ int main(int argc, char* argv[]) {
                 ai_update(ball, right);
             });
             collide(ball, right, [&]{
+                if (ball.speed < 1000) ball.speed += 50;
+                right.speed = left.speed = ball.speed;
                 update_trajectory(ball, right);
                 ai_update(ball, left);
             });
 
-            advance(ball, dt);
             advance(right, dt, check_paddle);
             advance(left, dt, check_paddle);
 
-            score(ball, [&] { 
-                set_midpoint(ball, 400, rng(100, 500));
-                if (ball.direction.x > 0) {
-                    std::cout << "score left!\n"; 
-                    ai_update(ball, right);
-                } else {
-                    std::cout << "score right!\n"; 
-                    ai_update(ball, left);
-                }
+            advance(ball, dt, [&](pong_rect & ball){
+                auto x = midpoint(ball).x;
+                if (x < 0 || x > W) {
+                    right.speed = left.speed = ball.speed = 500;
+                    set_midpoint(ball, 400, rng(100, 500));
+                    if (ball.direction.x > 0) {
+                        std::cout << "score left!\n"; 
+                        ai_update(ball, right);
+                    } else {
+                        std::cout << "score right!\n"; 
+                        ai_update(ball, left);
+                    }
+                } 
             });
 
             rw.clear();
