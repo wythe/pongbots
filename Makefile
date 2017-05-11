@@ -13,6 +13,5 @@ serial:
 	cd build && cmake -DCMAKE_BUILD_TYPE=Release .. && make VERBOSE=1 && cd ..
 
 clean:
-	rm -rf bin
 	test -d build && make -C build clean
 	test -d build && rm -rf build
