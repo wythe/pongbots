@@ -1,6 +1,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <random>
 #include <cmath>
 
 #include <SFML/Graphics.hpp>
@@ -170,6 +171,7 @@ void collide(pong_rect & ball, const T & wall, Action action) {
     else if ((topright || botright) && !topleft && !botleft) ball.direction.x = -std::abs(ball.direction.x);
     else if ((topleft || topright) && !botleft && !botright) ball.direction.y = std::abs(ball.direction.y);
     else if ((botright || botleft) && !topleft && !topright) ball.direction.y = -std::abs(ball.direction.y);
+	
     action();
 }
 
@@ -264,15 +266,17 @@ int main(int argc, char* argv[]) {
             }
 
             collide(ball, left, [&]{
+				sound.play();
                 update_trajectory(ball, left);
                 ai_update(ball, right);
             });
             collide(ball, right, [&]{
+				sound.play();
                 update_trajectory(ball, right);
                 ai_update(ball, left);
             });
-            collide(ball, bottom);
-            collide(ball, top);
+			collide(ball, bottom, [&] { sound.play(); });
+			collide(ball, top, [&] { sound.play(); });
 
             advance(right, dt, check_paddle);
             advance(left, dt, check_paddle);
@@ -292,16 +296,16 @@ int main(int argc, char* argv[]) {
             });
 
             rw.clear();
-            rw.draw(top);
+			rw.draw(cl);
+			rw.draw(top);
             rw.draw(bottom);
             rw.draw(left);
             rw.draw(right);
-			shader.setParameter("color", sf::Color::Red);
-			shader.setParameter("center", ball.getPosition() + sf::Vector2f(100.f, 100.f));
-			shader.setParameter("radius", 200.f);
-			shader.setParameter("expand", 0.25f);
+			shader.setUniform("color", sf::Glsl::Vec4(sf::Color::Cyan));
+			shader.setUniform("center", ball.getPosition());
+			shader.setUniform("radius", 200.f);
+			shader.setUniform("expand", 0.f);
             rw.draw(ball, &shader);
-            rw.draw(cl);
             rw.draw(score);
             rw.display();
         }

@@ -56,7 +56,7 @@ int main()
 	rectangle.setPosition(sf::Vector2f(window.getSize()) / 4.f);
 
 	shader.loadFromMemory(VertexShader, RadialGradient);
-	shader.setParameter("windowHeight", static_cast<float>(window.getSize().y)); // this must be set, but only needs to be set once (or whenever the size of the window changes)
+	shader.setUniform("windowHeight", static_cast<float>(window.getSize().y)); // this must be set, but only needs to be set once (or whenever the size of the window changes)
 
 	while (window.isOpen())
 	{
@@ -68,15 +68,15 @@ int main()
 		}
 
 		window.clear();
-		shader.setParameter("color", sf::Color::Red);
-		shader.setParameter("center", rectangle.getPosition() + sf::Vector2f(100.f, 100.f));
-		shader.setParameter("radius", 200.f);
-		shader.setParameter("expand", 0.25f);
+		shader.setUniform("color", sf::Glsl::Vec4(sf::Color::Red));
+		shader.setUniform("center", rectangle.getPosition() + sf::Vector2f(100.f, 100.f));
+		shader.setUniform("radius", 200.f);
+		shader.setUniform("expand", 0.25f);
 		window.draw(rectangle, &shader);
-		shader.setParameter("color", sf::Color::Blue);
-		shader.setParameter("center", circle.getPosition());
-		shader.setParameter("radius", circle.getRadius());
-		shader.setParameter("expand", 0.f);
+		shader.setUniform("color", sf::Glsl::Vec4(sf::Color::Blue));
+		shader.setUniform("center", circle.getPosition());
+		shader.setUniform("radius", circle.getRadius());
+		shader.setUniform("expand", 0.f);
 		window.draw(circle, &shader);
 		window.display();
 	}
