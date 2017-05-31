@@ -12,35 +12,8 @@ const float W = sf::VideoMode::getDesktopMode().width * 0.5;
 const float H = sf::VideoMode::getDesktopMode().height * 0.5;
 const float bar_h = 10.f; // bar and paddle width
 const sf::FloatRect playfield(0, bar_h, W, H - 2 * bar_h);
-
-const char VertexShader[] =
-"void main()"
-"{"
-	"gl_Position = gl_ModelViewProjectionMatrix * gl_Vertex;"
-	"gl_TexCoord[0] = gl_TextureMatrix[0] * gl_MultiTexCoord0;"
-	"gl_FrontColor = gl_Color;"
-"}";
-
-const char RadialGradient[] =
-"uniform vec4 color;"
-"uniform vec2 center;"
-"uniform float radius;"
-"uniform float expand;"
-"uniform float windowHeight;"
-"void main(void)"
-"{"
-"vec2 centerFromSfml = vec2(center.x, windowHeight - center.y);"
-"vec2 p = (gl_FragCoord.xy - centerFromSfml) / radius;"
-	"float r = sqrt(dot(p, p));"
-	"if (r < 1.0)"
-	"{"
-		"gl_FragColor = mix(color, gl_Color, (r - expand) / (1 - expand));"
-	"}"
-	"else"
-	"{"
-		"gl_FragColor = gl_Color;"
-	"}"
-"}";
+const sf::Color background(0x3f, 0x03, 0x03);
+const sf::Color amber(0xf5, 0xb5, 0x31);
 
 struct centerline : public sf::Drawable, public sf::Transformable {
      centerline(float n, const sf::Color & c) {
@@ -70,7 +43,7 @@ struct centerline : public sf::Drawable, public sf::Transformable {
 struct score_text : public sf::Text {
     score_text(const sf::Font & font, const sf::Color & c) {
         setFont(font);
-        setColor(c);
+        setFillColor(c);
         setCharacterSize(100);
         update();
 		auto rect = getLocalBounds();
@@ -205,7 +178,7 @@ int main(int argc, char* argv[]) {
         auto clock = sf::Clock();
 
         auto top = sf::RectangleShape{sf::Vector2f(W, bar_h)};
-        auto c = sf::Color::White;
+        auto c = amber;
         c.a = 155;
         top.setFillColor(c);
         top.setPosition(0, 0);
@@ -217,6 +190,7 @@ int main(int argc, char* argv[]) {
         cl.setPosition(W / 2 - bar_h / 2, bar_h);
         
         auto left = pong_rect{sf::Vector2f{10, 80}};
+        left.setFillColor(amber);
         set_midpoint(left, 50, H / 2.f);
 
         auto right = left;
@@ -226,7 +200,6 @@ int main(int argc, char* argv[]) {
         ball.direction = sf::Vector2f{pi / 4.f, pi / 4.f};
 
         auto sound_buff = sf::SoundBuffer();
-        if (!sound_buff.loadFromFile("assets/ball.wav")) throw std::runtime_error("cannot open sound file");
         sf::Sound sound(sound_buff);
         set_midpoint(ball, 400, 20);
 
@@ -237,10 +210,6 @@ int main(int argc, char* argv[]) {
 
         clock.restart();
         float dt;
-
-		sf::Shader shader;
-		shader.loadFromMemory(VertexShader, RadialGradient);
-		shader.setParameter("windowHeight", static_cast<float>(rw.getSize().y)); // this must be set, but only needs to be set once (or whenever the size of the window changes)
 
         ai_update(ball, right);
 
@@ -295,17 +264,13 @@ int main(int argc, char* argv[]) {
                 } 
             });
 
-            rw.clear();
+            rw.clear(background);
 			rw.draw(cl);
 			rw.draw(top);
             rw.draw(bottom);
             rw.draw(left);
             rw.draw(right);
-			shader.setUniform("color", sf::Glsl::Vec4(sf::Color::Cyan));
-			shader.setUniform("center", ball.getPosition());
-			shader.setUniform("radius", 200.f);
-			shader.setUniform("expand", 0.f);
-            rw.draw(ball, &shader);
+            rw.draw(ball);
             rw.draw(score);
             rw.display();
         }
