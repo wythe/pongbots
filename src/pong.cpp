@@ -7,6 +7,9 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
 
+#include "pong.h"
+#include "collision.h"
+
 const float pi = std::acos(-1);
 const float W = sf::VideoMode::getDesktopMode().width * 0.5;
 const float H = sf::VideoMode::getDesktopMode().height * 0.5;
@@ -72,13 +75,6 @@ struct score_text : public sf::Text {
     int r = 0;
 };
 
-struct pong_rect : public sf::RectangleShape {
-    pong_rect(sf::Vector2f size) : sf::RectangleShape(size) {}
-    sf::Vector2f direction; // a unit vector
-    float speed = 1000.f;
-    float dest_y;
-};
-
 sf::Vector2f midpoint(const pong_rect & o) {
     auto p = o.getPosition();
     auto s = o.getSize();
@@ -89,10 +85,6 @@ void set_midpoint(pong_rect & o, float x, float y) {
     auto p = o.getPosition();
     auto s = o.getSize();
     o.setPosition(x - s.x / 2, y - s.y / 2);
-}
-
-sf::FloatRect to_rect(const sf::RectangleShape & shape) {
-    return sf::FloatRect(shape.getPosition().x, shape.getPosition().y, shape.getSize().x, shape.getSize().y);
 }
 
 void advance(pong_rect & b, float dt) {
@@ -209,7 +201,7 @@ int main(int argc, char* argv[]) {
         score_text score(font, c);
 
         clock.restart();
-        float dt;
+        float dt; // time in seconds between frames
 
         ai_update(ball, right);
 
